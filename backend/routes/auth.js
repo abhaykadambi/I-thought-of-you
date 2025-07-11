@@ -9,21 +9,21 @@ const router = express.Router();
 // Register new user
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, name } = req.body;
+    const { email, password, name, phone } = req.body;
 
-    if (!email || !password || !name) {
-      return res.status(400).json({ error: 'Email, password, and name are required' });
+    if (!email || !password || !name || !phone) {
+      return res.status(400).json({ error: 'Email, password, name, and phone are required' });
     }
 
-    // Check if user already exists
+    // Check if user already exists (by email or phone)
     const { data: existingUser, error: checkError } = await supabase
       .from('users')
       .select('id')
-      .eq('email', email)
+      .or(`email.eq.${email},phone.eq.${phone}`)
       .single();
 
     if (existingUser) {
-      return res.status(400).json({ error: 'User already exists' });
+      return res.status(400).json({ error: 'User with this email or phone already exists' });
     }
 
     // Hash password
@@ -37,10 +37,11 @@ router.post('/register', async (req, res) => {
           email,
           password: hashedPassword,
           name,
+          phone,
           created_at: new Date().toISOString()
         }
       ])
-      .select('id, email, name, created_at')
+      .select('id, email, name, phone, created_at')
       .single();
 
     if (error) {
@@ -62,6 +63,7 @@ router.post('/register', async (req, res) => {
         id: user.id,
         email: user.email,
         name: user.name,
+        phone: user.phone,
         avatar: user.avatar
       },
       token

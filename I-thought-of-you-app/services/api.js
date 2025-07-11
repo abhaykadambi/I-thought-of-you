@@ -138,6 +138,30 @@ export const friendsAPI = {
     const response = await api.get(`/friends/${friendId}`);
     return response.data;
   },
+
+  // Get suggested friends by phone numbers
+  getSuggested: async ({ phoneNumbers }) => {
+    const response = await api.post('/friends/suggested', { phoneNumbers });
+    return response.data;
+  },
+
+  // Get incoming and outgoing friend requests
+  getRequests: async () => {
+    const response = await api.get('/friends/requests');
+    return response.data;
+  },
+
+  // Respond to a friend request (accept/decline)
+  respondToRequest: async (requestId, status) => {
+    const response = await api.post(`/friends/request/${requestId}/respond`, { status });
+    return response.data;
+  },
+
+  // Send a friend request by phone number
+  sendFriendRequest: async (phone) => {
+    const response = await api.post('/friends/request', { phone });
+    return response.data;
+  },
 };
 
 export default api; 

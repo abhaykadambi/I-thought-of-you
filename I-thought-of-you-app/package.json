@@ -16,6 +16,7 @@
     "@supabase/supabase-js": "^2.50.5",
     "axios": "^1.10.0",
     "expo": "~53.0.17",
+    "expo-contacts": "^14.2.5",
     "expo-image-picker": "^16.1.4",
     "expo-status-bar": "~2.2.3",
     "react": "19.0.0",

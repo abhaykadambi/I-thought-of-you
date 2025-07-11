@@ -14,6 +14,8 @@ import FeedScreen from './screens/FeedScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import ThoughtDetailOverlay from './screens/ThoughtDetailOverlay';
 import FriendProfileScreen from './screens/FriendProfileScreen';
+import AddFriendOverlay from './screens/AddFriendOverlay';
+import SignupScreen from './screens/SignupScreen';
 import { authAPI } from './services/api';
 
 const Stack = createNativeStackNavigator();
@@ -132,10 +134,12 @@ export default function App() {
         <Stack.Screen name="Welcome" component={WelcomeScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+        <Stack.Screen name="Signup" component={SignupScreen} />
         <Stack.Screen name="MainApp" component={MainApp} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="ThoughtDetailOverlay" component={ThoughtDetailOverlay} options={{ presentation: 'modal' }} />
         <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
+        <Stack.Screen name="AddFriendOverlay" component={AddFriendOverlay} options={{ presentation: 'modal', headerShown: false }} />
       </Stack.Navigator>
       <StatusBar style="dark" backgroundColor={globalBackground} />
     </NavigationContainer>

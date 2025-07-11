@@ -43,6 +43,9 @@ export default function SettingsScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('MainApp', { screen: 'Profile' })}>
+        <Text style={styles.backIcon}>←</Text>
+      </TouchableOpacity>
       <Text style={styles.header}>Settings</Text>
       <View style={styles.card}>
         <TouchableOpacity style={styles.settingRow}>
@@ -126,5 +129,24 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontFamily: headerFontFamily,
     letterSpacing: 0.5,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 48,
+    left: 24,
+    zIndex: 10,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  backIcon: {
+    fontSize: 24,
+    color: '#4a7cff',
+    fontWeight: 'bold',
   },
 }); 

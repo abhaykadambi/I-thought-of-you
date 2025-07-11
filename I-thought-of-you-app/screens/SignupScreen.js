@@ -1,35 +1,45 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
 import { authAPI } from '../services/api';
 
 const globalBackground = '#f8f5ee';
 const cardBackground = '#fff9ed';
 const headerFontFamily = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
-export default function LoginScreen({ navigation }) {
+export default function SignupScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
-    if (!email || !password) {
+  const handleSignUp = async () => {
+    if (!email || !password || !name || !phone) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
+    if (!/^\d{8,}$/.test(phone)) {
+      Alert.alert('Error', 'Please enter a valid phone number (at least 8 digits, numbers only)');
+      return;
+    }
+    setLoading(true);
     try {
-      await authAPI.login({ email, password });
+      await authAPI.register({ email, password, name, phone });
       navigation.navigate('MainApp');
     } catch (error) {
-      Alert.alert('Login Failed', error.response?.data?.error || 'Login failed. Please try again.');
+      Alert.alert('Registration Failed', error.response?.data?.error || 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleGoogleLogin = () => {
-    Alert.alert('Google Login', 'Google login would be implemented here');
+  const handleGoogleSignup = () => {
+    Alert.alert('Google Signup', 'Google signup would be implemented here');
     // navigation.navigate('MainApp');
   };
 
-  const handleICloudLogin = () => {
-    Alert.alert('iCloud Login', 'iCloud login would be implemented here');
+  const handleICloudSignup = () => {
+    Alert.alert('iCloud Signup', 'iCloud signup would be implemented here');
     // navigation.navigate('MainApp');
   };
 
@@ -38,16 +48,16 @@ export default function LoginScreen({ navigation }) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <Text style={styles.title}>Welcome Back</Text>
-      <Text style={styles.subtitle}>Sign in to continue</Text>
+      <Text style={styles.title}>Create Account</Text>
+      <Text style={styles.subtitle}>Sign up to get started</Text>
       <View style={styles.card}>
-        {/* Social Login Buttons */}
+        {/* Social Signup Buttons */}
         <View style={styles.socialContainer}>
-          <TouchableOpacity style={styles.googleButton} onPress={handleGoogleLogin}>
-            <Text style={styles.googleButtonText}>Continue with Google</Text>
+          <TouchableOpacity style={styles.googleButton} onPress={handleGoogleSignup}>
+            <Text style={styles.googleButtonText}>Sign up with Google</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.icloudButton} onPress={handleICloudLogin}>
-            <Text style={styles.icloudButtonText}>Continue with iCloud</Text>
+          <TouchableOpacity style={styles.icloudButton} onPress={handleICloudSignup}>
+            <Text style={styles.icloudButtonText}>Sign up with iCloud</Text>
           </TouchableOpacity>
         </View>
         {/* Divider */}
@@ -56,7 +66,24 @@ export default function LoginScreen({ navigation }) {
           <Text style={styles.dividerText}>or</Text>
           <View style={styles.dividerLine} />
         </View>
-        {/* Email/Password Form */}
+        {/* Signup Form */}
+        <TextInput
+          style={styles.input}
+          placeholder="Name"
+          value={name}
+          onChangeText={setName}
+          autoCapitalize="words"
+          placeholderTextColor="#b0a99f"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Phone Number"
+          value={phone}
+          onChangeText={setPhone}
+          keyboardType="phone-pad"
+          autoCapitalize="none"
+          placeholderTextColor="#b0a99f"
+        />
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -74,18 +101,19 @@ export default function LoginScreen({ navigation }) {
           secureTextEntry
           placeholderTextColor="#b0a99f"
         />
-        <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-          <Text style={styles.loginButtonText}>Login</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.signupButton} onPress={() => navigation.navigate('Signup')}>
-          <Text style={styles.signupButtonText}>Create Account</Text>
+        <TouchableOpacity style={styles.signupButton} onPress={handleSignUp} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.signupButtonText}>Create Account</Text>
+          )}
         </TouchableOpacity>
       </View>
       <TouchableOpacity 
         style={styles.backButton} 
-        onPress={() => navigation.navigate('Welcome')}
+        onPress={() => navigation.navigate('Login')}
       >
-        <Text style={styles.backButtonText}>Back to Welcome</Text>
+        <Text style={styles.backButtonText}>Back to Login</Text>
       </TouchableOpacity>
     </KeyboardAvoidingView>
   );
@@ -183,61 +211,49 @@ const styles = StyleSheet.create({
     fontFamily: headerFontFamily,
   },
   input: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
+    backgroundColor: '#f8f8f8',
+    borderRadius: 8,
     paddingVertical: 12,
-    borderRadius: 10,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: '#2c2c2c',
     borderWidth: 1,
     borderColor: '#ece6da',
-    fontSize: 16,
     fontFamily: headerFontFamily,
-    color: '#2c2c2c',
-    marginBottom: 16,
+    marginBottom: 14,
   },
-  loginButton: {
-    backgroundColor: '#4a7cff',
-    borderRadius: 12,
-    paddingVertical: 16,
+  signupButton: {
+    backgroundColor: '#3498db',
+    borderRadius: 10,
+    paddingVertical: 15,
     alignItems: 'center',
-    marginTop: 8,
-    shadowColor: '#4a7cff',
+    marginTop: 10,
+    shadowColor: '#3498db',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
     shadowRadius: 6,
     elevation: 2,
-    opacity: 1,
   },
-  loginButtonText: {
+  signupButtonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
     fontFamily: headerFontFamily,
     letterSpacing: 0.5,
   },
-  signupButton: {
+  backButton: {
     backgroundColor: 'transparent',
     paddingVertical: 15,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#4a7cff',
-    marginTop: 8,
-  },
-  signupButtonText: {
-    color: '#4a7cff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    fontFamily: headerFontFamily,
-    letterSpacing: 0.5,
-  },
-  backButton: {
-    alignItems: 'center',
-    paddingVertical: 10,
-    marginTop: 10,
+    borderColor: '#3498db',
+    marginHorizontal: 24,
   },
   backButtonText: {
-    color: '#b0a99f',
+    color: '#3498db',
     fontSize: 16,
+    fontWeight: '600',
     fontFamily: headerFontFamily,
   },
 }); 
