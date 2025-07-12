@@ -1,16 +1,66 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Image, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { thoughtsAPI } from '../services/api';
+import DropDownPicker from 'react-native-dropdown-picker';
+import { thoughtsAPI, friendsAPI } from '../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import notificationService from '../services/notificationService';
 
 const globalBackground = '#f8f5ee';
 const cardBackground = '#fff9ed';
 const headerFontFamily = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
-export default function ComposeThoughtScreen() {
+export default function ComposeThoughtScreen({ route, navigation }) {
   const [friend, setFriend] = useState('');
   const [note, setNote] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
+  
+  // Dropdown states
+  const [friends, setFriends] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [selectedFriend, setSelectedFriend] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // Check if a recipient was passed from navigation
+  const recipient = route.params?.recipient;
+
+  // Fetch friends on component mount
+  useEffect(() => {
+    fetchFriends();
+  }, []);
+
+  // Pre-select recipient if passed from navigation
+  useEffect(() => {
+    if (recipient && friends.length > 0) {
+      const recipientFriend = friends.find(f => f.value === recipient.id);
+      if (recipientFriend) {
+        setSelectedFriend(recipient.id);
+      }
+    }
+  }, [recipient, friends]);
+
+  const fetchFriends = async () => {
+    try {
+      setLoading(true);
+      const response = await friendsAPI.getAll();
+      console.log('Friends API response:', response);
+      const friendsList = response.users.map(friend => {
+        return {
+          label: friend.name,
+          value: friend.id,
+          avatar: friend.avatar,
+          email: friend.email,
+        };
+      });
+      console.log('Formatted friends list:', friendsList);
+      setFriends(friendsList);
+    } catch (error) {
+      console.error('Error fetching friends:', error);
+      Alert.alert('Error', 'Failed to load friends');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const pickImage = async () => {
     // Request permissions
@@ -38,20 +88,58 @@ export default function ComposeThoughtScreen() {
   };
 
   const handleSend = async () => {
-    if (!friend || !note) {
-      Alert.alert('Error', 'Please fill in all fields');
+    if (!selectedFriend || !note) {
+      Alert.alert('Error', 'Please select a friend and write a note');
       return;
     }
 
     try {
+      const selectedFriendData = friends.find(f => f.value === selectedFriend);
+      let imageUrl = null;
+
+      // Upload image if selected
+      if (selectedImage) {
+        try {
+          // Create form data for image upload
+          const formData = new FormData();
+          formData.append('image', {
+            uri: selectedImage,
+            type: 'image/jpeg', // You might want to detect the actual type
+            name: 'thought-image.jpg'
+          });
+
+          // Upload image first
+          const uploadResponse = await fetch('http://localhost:3000/api/thoughts/upload-image', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${await AsyncStorage.getItem('authToken')}`,
+              'Content-Type': 'multipart/form-data',
+            },
+            body: formData
+          });
+
+          if (!uploadResponse.ok) {
+            throw new Error('Failed to upload image');
+          }
+
+          const uploadResult = await uploadResponse.json();
+          imageUrl = uploadResult.imageUrl;
+        } catch (uploadError) {
+          console.error('Image upload error:', uploadError);
+          Alert.alert('Error', 'Failed to upload image. Please try again.');
+          return;
+        }
+      }
+
+      // Send thought with uploaded image URL
       await thoughtsAPI.create({
-        recipientEmail: friend,
+        recipientEmail: selectedFriendData.email,
         text: note,
-        imageUrl: selectedImage
+        imageUrl: imageUrl
       });
       
       // Clear the fields
-      setFriend('');
+      setSelectedFriend(null);
       setNote('');
       setSelectedImage(null);
       
@@ -62,6 +150,10 @@ export default function ComposeThoughtScreen() {
     }
   };
 
+  const getSelectedFriendData = () => {
+    return friends.find(f => f.value === selectedFriend);
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -70,13 +162,54 @@ export default function ComposeThoughtScreen() {
       <Text style={styles.header}>Send a Thought</Text>
       <View style={styles.card}>
         <Text style={styles.label}>To</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Friend's name"
-          placeholderTextColor="#b0a99f"
-          value={friend}
-          onChangeText={setFriend}
-        />
+        
+        {/* Friend Selection - Show dropdown or selected friend */}
+        {!selectedFriend ? (
+          <DropDownPicker
+            open={open}
+            value={selectedFriend}
+            items={friends}
+            setOpen={setOpen}
+            setValue={(callback) => {
+              console.log('Dropdown value changing to:', callback);
+              setSelectedFriend(callback);
+            }}
+            setItems={setFriends}
+            placeholder="Select a friend"
+            placeholderStyle={styles.dropdownPlaceholder}
+            style={styles.dropdown}
+            dropDownContainerStyle={styles.dropdownContainer}
+            listMode="SCROLLVIEW"
+            scrollViewProps={{
+              nestedScrollEnabled: true,
+            }}
+            loading={loading}
+            activityIndicatorColor="#4a7cff"
+            activityIndicatorSize="small"
+          />
+        ) : (
+          <View style={styles.selectedFriendDisplay}>
+            <View style={styles.selectedFriendContent}>
+              {getSelectedFriendData()?.avatar ? (
+                <Image source={{ uri: getSelectedFriendData().avatar }} style={styles.selectedFriendAvatar} />
+              ) : (
+                <View style={styles.selectedFriendAvatarPlaceholder}>
+                  <Text style={styles.selectedFriendAvatarText}>
+                    {getSelectedFriendData()?.label.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <Text style={styles.selectedFriendName}>{getSelectedFriendData()?.label}</Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.clearButton} 
+              onPress={() => setSelectedFriend(null)}
+            >
+              <Text style={styles.clearButtonText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <Text style={styles.label}>Your Note</Text>
         <TextInput
           style={styles.textarea}
@@ -106,7 +239,11 @@ export default function ComposeThoughtScreen() {
           )}
         </View>
         
-        <TouchableOpacity style={styles.sendButton} onPress={handleSend} disabled={!friend || !note}>
+        <TouchableOpacity 
+          style={[styles.sendButton, (!selectedFriend || !note) && styles.sendButtonDisabled]} 
+          onPress={handleSend} 
+          disabled={!selectedFriend || !note}
+        >
           <Text style={styles.sendButtonText}>Send</Text>
         </TouchableOpacity>
       </View>
@@ -150,6 +287,61 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginTop: 10,
   },
+  dropdown: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ece6da',
+    marginBottom: 16,
+  },
+  dropdownContainer: {
+    backgroundColor: '#fff',
+    borderColor: '#ece6da',
+    borderRadius: 10,
+    maxHeight: 200,
+  },
+  dropdownPlaceholder: {
+    color: '#b0a99f',
+    fontSize: 16,
+    fontFamily: headerFontFamily,
+  },
+  dropdownItem: {
+    paddingVertical: 8,
+  },
+  dropdownItemLabel: {
+    fontSize: 16,
+    fontFamily: headerFontFamily,
+  },
+  dropdownItemContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  dropdownItemText: {
+    fontSize: 16,
+    fontFamily: headerFontFamily,
+    color: '#2c2c2c',
+    marginLeft: 12,
+  },
+  friendAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  friendAvatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#4a7cff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  friendAvatarText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
   input: {
     backgroundColor: '#fff',
     borderRadius: 10,
@@ -186,7 +378,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 6,
     elevation: 2,
-    opacity: 1,
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#b0a99f',
+    shadowOpacity: 0,
   },
   sendButtonText: {
     color: '#fff',
@@ -240,5 +435,49 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  selectedFriendDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#ece6da',
+    marginBottom: 16,
+  },
+  selectedFriendContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  selectedFriendAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  selectedFriendAvatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#4a7cff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedFriendName: {
+    fontSize: 16,
+    fontFamily: headerFontFamily,
+    color: '#2c2c2c',
+    marginLeft: 16,
+    fontWeight: '600',
+  },
+  clearButton: {
+    padding: 8,
+  },
+  clearButtonText: {
+    fontSize: 20,
+    color: '#b0a99f',
   },
 }); 

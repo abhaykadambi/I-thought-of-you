@@ -12,11 +12,16 @@ import FriendsListScreen from './screens/FriendsListScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import FeedScreen from './screens/FeedScreen';
 import SettingsScreen from './screens/SettingsScreen';
+import AccountScreen from './screens/AccountScreen';
+import PrivacyScreen from './screens/PrivacyScreen';
+import NotificationsScreen from './screens/NotificationsScreen';
 import ThoughtDetailOverlay from './screens/ThoughtDetailOverlay';
 import FriendProfileScreen from './screens/FriendProfileScreen';
 import AddFriendOverlay from './screens/AddFriendOverlay';
 import SignupScreen from './screens/SignupScreen';
 import { authAPI } from './services/api';
+import notificationService from './services/notificationService';
+import * as Notifications from 'expo-notifications';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -25,7 +30,13 @@ const globalBackground = '#f8f5ee'; // soft cream
 const headerFontFamily = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
 // Main App with Bottom Tabs
-function MainApp() {
+function MainApp({ navigation }) {
+  // Set up notification listener with navigation
+  React.useEffect(() => {
+    const cleanup = notificationService.setupNotificationListener(navigation);
+    return cleanup;
+  }, [navigation]);
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -108,11 +119,20 @@ export default function App() {
   const [initialRoute, setInitialRoute] = useState(null);
 
   useEffect(() => {
-    const checkAuth = async () => {
+    const initializeApp = async () => {
+      // Check authentication
       const loggedIn = await authAPI.isLoggedIn();
       setInitialRoute(loggedIn ? 'MainApp' : 'Welcome');
+      
+      // Request notification permissions if user is logged in
+      if (loggedIn) {
+        // Small delay to ensure app is fully loaded
+        setTimeout(async () => {
+          await notificationService.requestPermissions();
+        }, 1000);
+      }
     };
-    checkAuth();
+    initializeApp();
   }, []);
 
   if (initialRoute === null) {
@@ -137,6 +157,9 @@ export default function App() {
         <Stack.Screen name="Signup" component={SignupScreen} />
         <Stack.Screen name="MainApp" component={MainApp} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="Account" component={AccountScreen} />
+        <Stack.Screen name="Privacy" component={PrivacyScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="ThoughtDetailOverlay" component={ThoughtDetailOverlay} options={{ presentation: 'modal' }} />
         <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
         <Stack.Screen name="AddFriendOverlay" component={AddFriendOverlay} options={{ presentation: 'modal', headerShown: false }} />

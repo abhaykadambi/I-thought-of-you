@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert, Image } from 'react-native';
 import { thoughtsAPI } from '../services/api';
 
@@ -9,6 +9,25 @@ const headerFontFamily = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 export default function ThoughtDetailOverlay({ route, navigation }) {
   const { thought } = route.params;
   const [isPinned, setIsPinned] = useState(false);
+
+  // Debug logging
+  console.log('ThoughtDetailOverlay received thought:', thought);
+  console.log('Thought image:', thought.image);
+
+  // Check if thought is already pinned when component mounts
+  useEffect(() => {
+    checkPinStatus();
+  }, []);
+
+  const checkPinStatus = async () => {
+    try {
+      const pinnedData = await thoughtsAPI.getPinned();
+      const isAlreadyPinned = pinnedData.pinnedThoughts.some(pinnedThought => pinnedThought.id === thought.id);
+      setIsPinned(isAlreadyPinned);
+    } catch (error) {
+      console.error('Error checking pin status:', error);
+    }
+  };
 
   const handlePinThought = async () => {
     if (isPinned) {
@@ -67,13 +86,30 @@ export default function ThoughtDetailOverlay({ route, navigation }) {
         <Text style={styles.closeIcon}>←</Text>
       </TouchableOpacity>
       <View style={styles.card}>
-        <Text style={styles.author}>
-          {thought.author === 'You' && thought.recipient ? `To ${thought.recipient}` : thought.author}
-        </Text>
+        <View style={styles.authorSection}>
+          {thought.authorAvatar && thought.author !== 'You' ? (
+            <Image source={{ uri: thought.authorAvatar }} style={styles.authorAvatar} />
+          ) : thought.author !== 'You' ? (
+            <View style={styles.authorAvatarPlaceholder}>
+              <Text style={styles.authorAvatarText}>
+                {thought.author.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          ) : null}
+          <Text style={styles.author}>
+            {thought.author === 'You' && thought.recipient ? `To ${thought.recipient}` : thought.author}
+          </Text>
+        </View>
         <Text style={styles.text}>{thought.text}</Text>
         {thought.image && (
           <View style={styles.imageContainer}>
-            <Image source={{ uri: thought.image }} style={styles.thoughtImage} />
+            <Image 
+              source={{ uri: thought.image }} 
+              style={styles.thoughtImage}
+              resizeMode="cover"
+              onError={(error) => console.log('Image loading error:', error)}
+              onLoad={() => console.log('Image loaded successfully')}
+            />
           </View>
         )}
         <Text style={styles.time}>{thought.time}</Text>
@@ -132,20 +168,46 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
   },
+  authorSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  authorAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
+    backgroundColor: '#e0e0e0',
+  },
+  authorAvatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
+    backgroundColor: '#4a7cff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  authorAvatarText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
   author: {
     fontSize: 22,
     fontWeight: 'bold',
     fontFamily: headerFontFamily,
     color: '#2c2c2c',
-    marginBottom: 18,
   },
   text: {
     fontSize: 20,
     fontFamily: headerFontFamily,
     color: '#2c2c2c',
     marginBottom: 24,
-    textAlign: 'center',
+    textAlign: 'left',
     lineHeight: 30,
+    flexShrink: 1,
   },
   time: {
     fontSize: 15,
@@ -188,10 +250,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#f0f0f0',
+    width: '100%',
+    maxWidth: 350,
   },
   thoughtImage: {
     width: '100%',
-    height: 200,
+    height: 250,
     resizeMode: 'cover',
   },
 }); 

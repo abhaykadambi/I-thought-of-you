@@ -1,15 +1,90 @@
 const express = require('express');
 const supabase = require('../config/supabase');
 const { authenticateToken } = require('../middleware/auth');
+const multer = require('multer');
+const path = require('path');
+const notificationService = require('../services/notificationService');
 
 const router = express.Router();
 
-// Get all thoughts for current user (received and sent)
+// Configure multer for image uploads
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'));
+    }
+  }
+});
+
+// Upload image endpoint
+router.post('/upload-image', authenticateToken, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+
+    const userId = req.user.userId;
+    const fileExtension = path.extname(req.file.originalname);
+    const fileName = `thoughts/${userId}/${Date.now()}${fileExtension}`;
+
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from('thought-images')
+      .upload(fileName, req.file.buffer, {
+        contentType: req.file.mimetype,
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (error) {
+      console.error('Supabase upload error:', error);
+      return res.status(500).json({ error: 'Failed to upload image' });
+    }
+
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('thought-images')
+      .getPublicUrl(fileName);
+
+    res.json({ 
+      imageUrl: publicUrl,
+      message: 'Image uploaded successfully' 
+    });
+
+  } catch (error) {
+    console.error('Image upload error:', error);
+    res.status(500).json({ error: 'Failed to upload image' });
+  }
+});
+
+// Get all thoughts for current user (received and sent) - only from friends
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
 
-    // Get received thoughts
+    // Get user's friends
+    const { data: friends, error: friendsError } = await supabase
+      .rpc('get_friends', { user_id: userId });
+
+    if (friendsError) {
+      console.error('Error fetching friends:', friendsError);
+      return res.status(500).json({ error: 'Failed to fetch friends' });
+    }
+
+    const friendIds = friends.map(friend => friend.id);
+
+    // Get received thoughts only from friends
     const { data: receivedThoughts, error: receivedError } = await supabase
       .from('thoughts')
       .select(`
@@ -17,9 +92,10 @@ router.get('/', authenticateToken, async (req, res) => {
         text,
         image_url,
         created_at,
-        sender:users!thoughts_sender_id_fkey(id, name)
+        sender:users!thoughts_sender_id_fkey(id, name, avatar)
       `)
       .eq('recipient_id', userId)
+      .in('sender_id', friendIds)
       .order('created_at', { ascending: false });
 
     if (receivedError) {
@@ -27,7 +103,7 @@ router.get('/', authenticateToken, async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch received thoughts' });
     }
 
-    // Get sent thoughts
+    // Get sent thoughts only to friends
     const { data: sentThoughts, error: sentError } = await supabase
       .from('thoughts')
       .select(`
@@ -38,6 +114,7 @@ router.get('/', authenticateToken, async (req, res) => {
         recipient:users!thoughts_recipient_id_fkey(id, name)
       `)
       .eq('sender_id', userId)
+      .in('recipient_id', friendIds)
       .order('created_at', { ascending: false });
 
     if (sentError) {
@@ -49,6 +126,7 @@ router.get('/', authenticateToken, async (req, res) => {
     const formattedReceived = receivedThoughts.map(thought => ({
       id: thought.id,
       author: thought.sender.name,
+      authorAvatar: thought.sender.avatar,
       text: thought.text,
       image: thought.image_url,
       time: formatTime(thought.created_at)
@@ -95,6 +173,18 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Recipient not found' });
     }
 
+    // Get sender's name for notification
+    const { data: sender, error: senderError } = await supabase
+      .from('users')
+      .select('name')
+      .eq('id', senderId)
+      .single();
+
+    if (senderError) {
+      console.error('Error fetching sender name:', senderError);
+      return res.status(500).json({ error: 'Failed to create thought' });
+    }
+
     // Create thought
     const { data: thought, error } = await supabase
       .from('thoughts')
@@ -120,6 +210,19 @@ router.post('/', authenticateToken, async (req, res) => {
       console.error('Error creating thought:', error);
       return res.status(500).json({ error: 'Failed to create thought' });
     }
+
+    // Send push notification to recipient (don't wait for it to complete)
+    notificationService.sendThoughtNotification(recipient.id, sender.name)
+      .then(success => {
+        if (success) {
+          console.log(`Push notification sent to ${recipient.id} for thought from ${sender.name}`);
+        } else {
+          console.log(`Failed to send push notification to ${recipient.id}`);
+        }
+      })
+      .catch(error => {
+        console.error('Error sending push notification:', error);
+      });
 
     res.status(201).json({
       message: 'Thought sent successfully',

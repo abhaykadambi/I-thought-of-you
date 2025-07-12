@@ -162,6 +162,69 @@ export const friendsAPI = {
     const response = await api.post('/friends/request', { phone });
     return response.data;
   },
+
+  // Unfriend a user
+  unfriend: async (friendId) => {
+    const response = await api.delete(`/friends/${friendId}`);
+    return response.data;
+  },
+};
+
+// Settings API
+export const settingsAPI = {
+  // Get user settings (privacy and notifications)
+  getSettings: async () => {
+    const response = await api.get('/settings');
+    return response.data;
+  },
+
+  // Update user settings
+  updateSettings: async (settings) => {
+    const response = await api.put('/settings', settings);
+    return response.data;
+  },
+
+  // Change password
+  changePassword: async (currentPassword, newPassword) => {
+    const response = await api.put('/settings/password', { currentPassword, newPassword });
+    return response.data;
+  },
+
+  // Delete account
+  deleteAccount: async () => {
+    const response = await api.delete('/settings/account');
+    return response.data;
+  },
+
+  // Get blocked users
+  getBlockedUsers: async () => {
+    const response = await api.get('/settings/blocked');
+    return response.data;
+  },
+
+  // Block a user
+  blockUser: async (contact) => {
+    const response = await api.post('/settings/block', { contact });
+    return response.data;
+  },
+
+  // Unblock a user
+  unblockUser: async (userId) => {
+    const response = await api.delete(`/settings/block/${userId}`);
+    return response.data;
+  },
+
+  // Export user data
+  exportData: async () => {
+    const response = await api.get('/settings/export');
+    return response.data;
+  },
+
+  // Test notification
+  testNotification: async () => {
+    const response = await api.post('/settings/test-notification');
+    return response.data;
+  },
 };
 
 export default api; 

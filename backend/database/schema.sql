@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
     password VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
     phone VARCHAR(32) UNIQUE,
+    avatar TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -111,10 +112,10 @@ CREATE TRIGGER update_thoughts_updated_at BEFORE UPDATE ON thoughts
 
 -- Function to get all friends for a user
 CREATE OR REPLACE FUNCTION get_friends(user_id uuid)
-RETURNS TABLE(id uuid, name varchar, email varchar, phone varchar, created_at timestamp with time zone) AS $$
+RETURNS TABLE(id uuid, name varchar, email varchar, phone varchar, avatar text, created_at timestamp with time zone) AS $$
 BEGIN
   RETURN QUERY
-    SELECT u.id, u.name, u.email, u.phone, u.created_at
+    SELECT u.id, u.name, u.email, u.phone, u.avatar, u.created_at
     FROM users u
     WHERE u.id != user_id
       AND EXISTS (

@@ -4,6 +4,7 @@ import { friendsAPI } from '../services/api';
 import * as Contacts from 'expo-contacts';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const globalBackground = '#f8f5ee';
 const cardBackground = '#fff9ed';
@@ -32,11 +33,33 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
     }
   }, [friends, loading]);
 
+  // Debug: Log current user ID on mount
+  useEffect(() => {
+    (async () => {
+      const user = await AsyncStorage.getItem('user');
+      if (user) {
+        const parsed = JSON.parse(user);
+        console.log('CURRENT USER ID:', parsed.id);
+      }
+    })();
+  }, []);
+
+  // Debug: Log unhandled promise rejections
+  if (typeof global !== 'undefined' && global.process && global.process.on) {
+    global.process.on('unhandledRejection', (reason, promise) => {
+      console.log('UNHANDLED PROMISE REJECTION:', reason);
+    });
+  }
+
   const loadIncomingRequests = async () => {
+    console.log('CALLING loadIncomingRequests');
     try {
       const data = await friendsAPI.getRequests();
+      console.log('FULL RESPONSE FROM API:', data);
+      console.log('INCOMING REQUESTS FROM API:', data.incoming);
       setIncomingRequests((data.incoming || []).filter(r => r.status === 'pending'));
     } catch (error) {
+      console.log('ERROR IN loadIncomingRequests:', error);
       setIncomingRequests([]);
     }
   };
@@ -112,7 +135,15 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
       style={styles.friendCard}
       onPress={() => navigation.navigate('FriendProfile', { friend: item })}
     >
-      <Image source={{ uri: item.avatar }} style={styles.avatar} />
+      {item.avatar ? (
+        <Image source={{ uri: item.avatar }} style={styles.avatar} />
+      ) : (
+        <View style={styles.avatarPlaceholder}>
+          <Text style={styles.avatarText}>
+            {item.name.charAt(0).toUpperCase()}
+          </Text>
+        </View>
+      )}
       <Text style={styles.friendName}>{item.name}</Text>
       <Text style={styles.arrow}>›</Text>
     </TouchableOpacity>
@@ -120,7 +151,15 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
 
   const renderSuggestedItem = ({ item }) => (
     <View style={styles.suggestedCard}>
-      <Image source={{ uri: item.avatar }} style={styles.avatar} />
+      {item.avatar ? (
+        <Image source={{ uri: item.avatar }} style={styles.avatar} />
+      ) : (
+        <View style={styles.avatarPlaceholder}>
+          <Text style={styles.avatarText}>
+            {item.name.charAt(0).toUpperCase()}
+          </Text>
+        </View>
+      )}
       <Text style={styles.friendName}>{item.name}</Text>
       <TouchableOpacity style={styles.addButton}>
         <Text style={styles.addButtonText}>Add</Text>
@@ -152,10 +191,18 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
           {incomingRequests.map(item => (
             <View style={styles.requestCard} key={item.id}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-                <Image
-                  source={{ uri: item.sender?.avatar || defaultAvatar }}
-                  style={styles.avatar}
-                />
+                {item.sender?.avatar ? (
+                  <Image
+                    source={{ uri: item.sender.avatar }}
+                    style={styles.avatar}
+                  />
+                ) : (
+                  <View style={styles.avatarPlaceholder}>
+                    <Text style={styles.avatarText}>
+                      {(item.sender?.name || 'U').charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
                 <Text style={styles.requestText}>
                   {item.sender?.name || 'Unknown User'}
                   {item.sender?.phone ? ` (${item.sender.phone})` : ''}
@@ -428,5 +475,19 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 15,
     fontFamily: headerFontFamily,
+  },
+  avatarPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 16,
+    backgroundColor: '#4a7cff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
   },
 }); 

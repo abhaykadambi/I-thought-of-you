@@ -26,6 +26,33 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /friends/requests - Get incoming and outgoing friend requests
+router.get('/requests', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    // Incoming requests (to me) with sender details
+    const { data: incoming, error: incomingError } = await supabase
+      .from('friend_requests')
+      .select('id, sender_id, recipient_id, status, created_at, sender:sender_id(id, name, email, phone, avatar)')
+      .eq('recipient_id', userId)
+      .order('created_at', { ascending: false });
+    // Outgoing requests (from me)
+    const { data: outgoing, error: outgoingError } = await supabase
+      .from('friend_requests')
+      .select('id, sender_id, recipient_id, status, created_at')
+      .eq('sender_id', userId)
+      .order('created_at', { ascending: false });
+    if (incomingError || outgoingError) {
+      return res.status(500).json({ error: 'Failed to fetch friend requests' });
+    }
+    console.log('INCOMING REQUESTS:', JSON.stringify(incoming, null, 2));
+    res.json({ incoming, outgoing });
+  } catch (error) {
+    console.error('Get friend requests error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get friend profile with thoughts from that friend
 router.get('/:friendId', authenticateToken, async (req, res) => {
   try {
@@ -35,7 +62,7 @@ router.get('/:friendId', authenticateToken, async (req, res) => {
     // Get friend's profile
     const { data: friend, error: friendError } = await supabase
       .from('users')
-      .select('id, name, email, created_at')
+      .select('id, name, email, avatar, created_at')
       .eq('id', friendId)
       .single();
 
@@ -61,6 +88,35 @@ router.get('/:friendId', authenticateToken, async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch thoughts' });
     }
 
+    // Get thoughts sent by current user to this friend
+    const { data: sentThoughts, error: sentError } = await supabase
+      .from('thoughts')
+      .select('id')
+      .eq('sender_id', currentUserId)
+      .eq('recipient_id', friendId);
+
+    if (sentError) {
+      console.error('Error fetching sent thoughts:', sentError);
+      return res.status(500).json({ error: 'Failed to fetch sent thoughts' });
+    }
+
+    // Get friend request to calculate days connected
+    const { data: friendRequest, error: requestError } = await supabase
+      .from('friend_requests')
+      .select('updated_at')
+      .or(`and(sender_id.eq.${currentUserId},recipient_id.eq.${friendId}),and(sender_id.eq.${friendId},recipient_id.eq.${currentUserId})`)
+      .eq('status', 'accepted')
+      .single();
+
+    // Calculate days connected
+    let daysConnected = 0;
+    if (friendRequest && friendRequest.updated_at) {
+      const acceptedDate = new Date(friendRequest.updated_at);
+      const now = new Date();
+      const diffTime = Math.abs(now - acceptedDate);
+      daysConnected = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    }
+
     // Format thoughts
     const formattedThoughts = thoughts.map(thought => ({
       id: thought.id,
@@ -73,9 +129,15 @@ router.get('/:friendId', authenticateToken, async (req, res) => {
       friend: {
         id: friend.id,
         name: friend.name,
-        email: friend.email
+        email: friend.email,
+        avatar: friend.avatar
       },
-      thoughts: formattedThoughts
+      thoughts: formattedThoughts,
+      stats: {
+        thoughtsSent: sentThoughts ? sentThoughts.length : 0,
+        thoughtsReceived: thoughts ? thoughts.length : 0,
+        daysConnected: daysConnected
+      }
     });
 
   } catch (error) {
@@ -94,7 +156,7 @@ router.post('/suggested', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'No emails or phone numbers provided' });
     }
 
-    let query = supabase.from('users').select('id, name, email, created_at');
+    let query = supabase.from('users').select('id, name, email, avatar, created_at');
     if (emails.length > 0 && phoneNumbers.length > 0) {
       query = query.or(`email.in.(${emails.map(e => `'${e}'`).join(',')}),phone.in.(${phoneNumbers.map(p => `'${p}'`).join(',')})`);
     } else if (emails.length > 0) {
@@ -124,6 +186,7 @@ router.post('/request', authenticateToken, async (req, res) => {
   try {
     const senderId = req.user.userId;
     const { phone } = req.body;
+    console.log('FRIEND REQUEST: senderId:', senderId, 'phone:', phone);
     if (!phone) {
       return res.status(400).json({ error: 'Phone number is required' });
     }
@@ -133,30 +196,37 @@ router.post('/request', authenticateToken, async (req, res) => {
       .select('id, phone')
       .eq('phone', phone)
       .single();
+    console.log('FRIEND REQUEST: recipient found:', recipient, 'error:', userError);
     if (userError || !recipient) {
+      console.log('FRIEND REQUEST: recipient not found or error');
       return res.status(404).json({ error: 'User with that phone number not found' });
     }
     if (recipient.id === senderId) {
+      console.log('FRIEND REQUEST: cannot send to self');
       return res.status(400).json({ error: 'Cannot send friend request to yourself' });
     }
     // Check if already friends (for now, just check if a request is accepted)
     const { data: existingAccepted, error: acceptedError } = await supabase
       .from('friend_requests')
       .select('id')
-      .or(`(sender_id.eq.${senderId},recipient_id.eq.${recipient.id})`, `(sender_id.eq.${recipient.id},recipient_id.eq.${senderId})`)
+      .or(`and(sender_id.eq.${senderId},recipient_id.eq.${recipient.id}),and(sender_id.eq.${recipient.id},recipient_id.eq.${senderId})`)
       .eq('status', 'accepted')
       .maybeSingle();
+    console.log('FRIEND REQUEST: existingAccepted:', existingAccepted, 'error:', acceptedError);
     if (existingAccepted) {
+      console.log('FRIEND REQUEST: already friends');
       return res.status(400).json({ error: 'You are already friends' });
     }
     // Check if a pending request already exists
     const { data: existingRequest, error: requestError } = await supabase
       .from('friend_requests')
       .select('id, status')
-      .or(`(sender_id.eq.${senderId},recipient_id.eq.${recipient.id})`, `(sender_id.eq.${recipient.id},recipient_id.eq.${senderId})`)
+      .or(`and(sender_id.eq.${senderId},recipient_id.eq.${recipient.id}),and(sender_id.eq.${recipient.id},recipient_id.eq.${senderId})`)
       .neq('status', 'declined')
       .maybeSingle();
+    console.log('FRIEND REQUEST: existingRequest:', existingRequest, 'error:', requestError);
     if (existingRequest) {
+      console.log('FRIEND REQUEST: request already exists');
       return res.status(400).json({ error: 'A friend request already exists' });
     }
     // Create friend request
@@ -172,6 +242,7 @@ router.post('/request', authenticateToken, async (req, res) => {
       ])
       .select('id, sender_id, recipient_id, status, created_at')
       .single();
+    console.log('FRIEND REQUEST: created:', request, 'error:', error);
     if (error) {
       console.error('Error creating friend request:', error);
       return res.status(500).json({ error: 'Failed to create friend request' });
@@ -179,33 +250,6 @@ router.post('/request', authenticateToken, async (req, res) => {
     res.status(201).json({ request });
   } catch (error) {
     console.error('Friend request error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// GET /friends/requests - Get incoming and outgoing friend requests
-router.get('/requests', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    // Incoming requests (to me) with sender details
-    const { data: incoming, error: incomingError } = await supabase
-      .from('friend_requests')
-      .select('id, sender_id, recipient_id, status, created_at, sender:sender_id(id, name, email, phone, avatar)')
-      .eq('recipient_id', userId)
-      .order('created_at', { ascending: false });
-    // Outgoing requests (from me)
-    const { data: outgoing, error: outgoingError } = await supabase
-      .from('friend_requests')
-      .select('id, sender_id, recipient_id, status, created_at')
-      .eq('sender_id', userId)
-      .order('created_at', { ascending: false });
-    if (incomingError || outgoingError) {
-      return res.status(500).json({ error: 'Failed to fetch friend requests' });
-    }
-    console.log('INCOMING REQUESTS:', JSON.stringify(incoming, null, 2));
-    res.json({ incoming, outgoing });
-  } catch (error) {
-    console.error('Get friend requests error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -245,6 +289,34 @@ router.post('/request/:requestId/respond', authenticateToken, async (req, res) =
     res.json({ request: updated });
   } catch (error) {
     console.error('Respond to friend request error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /friends/:friendId - Unfriend a user
+router.delete('/:friendId', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { friendId } = req.params;
+
+    if (userId === friendId) {
+      return res.status(400).json({ error: 'Cannot unfriend yourself' });
+    }
+
+    // Delete the friend relationship (both directions)
+    const { error } = await supabase
+      .from('friend_requests')
+      .delete()
+      .or(`and(sender_id.eq.${userId},recipient_id.eq.${friendId}),and(sender_id.eq.${friendId},recipient_id.eq.${userId})`);
+
+    if (error) {
+      console.error('Error unfriending user:', error);
+      return res.status(500).json({ error: 'Failed to unfriend user' });
+    }
+
+    res.json({ message: 'User unfriended successfully' });
+  } catch (error) {
+    console.error('Unfriend error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

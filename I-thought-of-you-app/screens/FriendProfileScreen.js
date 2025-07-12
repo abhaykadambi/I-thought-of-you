@@ -10,6 +10,12 @@ export default function FriendProfileScreen({ route, navigation }) {
   const { friend } = route.params;
   const [thoughtsFromFriend, setThoughtsFromFriend] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showMenu, setShowMenu] = useState(false);
+  const [stats, setStats] = useState({
+    thoughtsSent: 0,
+    thoughtsReceived: 0,
+    daysConnected: 0
+  });
 
   useEffect(() => {
     loadFriendProfile();
@@ -20,6 +26,13 @@ export default function FriendProfileScreen({ route, navigation }) {
       setLoading(true);
       const data = await friendsAPI.getProfile(friend.id);
       setThoughtsFromFriend(data.thoughts || []);
+      
+      // Use stats from API response
+      setStats({
+        thoughtsSent: data.stats?.thoughtsSent || 0,
+        thoughtsReceived: data.stats?.thoughtsReceived || 0,
+        daysConnected: data.stats?.daysConnected || 0
+      });
     } catch (error) {
       console.error('Error loading friend profile:', error);
       Alert.alert('Error', 'Failed to load friend profile. Please try again.');
@@ -29,15 +42,63 @@ export default function FriendProfileScreen({ route, navigation }) {
   };
 
   const handleSendThought = () => {
-    // Navigate to compose screen with friend pre-selected
-    navigation.navigate('Compose', { recipient: friend });
+    // Navigate to compose tab with friend pre-selected
+    navigation.navigate('MainApp', { 
+      screen: 'Compose', 
+      params: { recipient: friend } 
+    });
+  };
+
+  const handleMenuPress = () => {
+    setShowMenu(!showMenu);
+  };
+
+  const handleUnfriend = () => {
+    setShowMenu(false);
+    Alert.alert(
+      'Unfriend',
+      `Are you sure you want to unfriend ${friend.name}?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Unfriend',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await friendsAPI.unfriend(friend.id);
+              Alert.alert('Success', `${friend.name} has been unfriended.`);
+              navigation.goBack();
+            } catch (error) {
+              console.error('Unfriend error:', error);
+              Alert.alert('Error', 'Failed to unfriend. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const renderThoughtItem = ({ item }) => (
-    <View style={styles.thoughtItem}>
+    <TouchableOpacity 
+      style={styles.thoughtItem}
+      onPress={() => navigation.navigate('ThoughtDetailOverlay', { 
+        thought: {
+          author: friend.name,
+          text: item.text,
+          time: item.time,
+          image: item.image
+        }
+      })}
+    >
       <Text style={styles.thoughtText}>"{item.text}"</Text>
+      {item.image && (
+        <Image source={{ uri: item.image }} style={styles.thoughtImage} />
+      )}
       <Text style={styles.thoughtTime}>{item.time}</Text>
-    </View>
+    </TouchableOpacity>
   );
 
 
@@ -48,25 +109,52 @@ export default function FriendProfileScreen({ route, navigation }) {
         <Text style={styles.backIcon}>←</Text>
       </TouchableOpacity>
       
+      <TouchableOpacity style={styles.menuButton} onPress={handleMenuPress}>
+        <Text style={styles.menuIcon}>⋮</Text>
+      </TouchableOpacity>
+      
+      {showMenu && (
+        <>
+          <TouchableOpacity 
+            style={styles.backdrop} 
+            onPress={() => setShowMenu(false)}
+            activeOpacity={1}
+          />
+          <View style={styles.menuOverlay}>
+            <TouchableOpacity style={styles.menuItem} onPress={handleUnfriend}>
+              <Text style={styles.menuItemText}>Unfriend</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+      
       <View style={styles.profileSection}>
-        <Image source={{ uri: friend.avatar }} style={styles.profileAvatar} />
+        {friend.avatar ? (
+          <Image source={{ uri: friend.avatar }} style={styles.profileAvatar} />
+        ) : (
+          <View style={styles.profileAvatarPlaceholder}>
+            <Text style={styles.profileAvatarText}>
+              {friend.name.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        )}
         <Text style={styles.profileName}>{friend.name}</Text>
         <Text style={styles.profileStatus}>Friend</Text>
       </View>
 
       <View style={styles.statsCard}>
         <View style={styles.statItem}>
-          <Text style={styles.statNumber}>12</Text>
+          <Text style={styles.statNumber}>{stats.thoughtsSent}</Text>
           <Text style={styles.statLabel}>Thoughts Sent</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={styles.statNumber}>8</Text>
+          <Text style={styles.statNumber}>{stats.thoughtsReceived}</Text>
           <Text style={styles.statLabel}>Thoughts Received</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={styles.statNumber}>5</Text>
+          <Text style={styles.statNumber}>{stats.daysConnected}</Text>
           <Text style={styles.statLabel}>Days Connected</Text>
         </View>
       </View>
@@ -123,6 +211,61 @@ const styles = StyleSheet.create({
     color: '#4a7cff',
     fontWeight: 'bold',
   },
+  menuButton: {
+    position: 'absolute',
+    top: 48,
+    right: 24,
+    zIndex: 10,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  menuIcon: {
+    fontSize: 24,
+    color: '#666',
+    fontWeight: 'bold',
+  },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+    zIndex: 15,
+  },
+  menuOverlay: {
+    position: 'absolute',
+    top: 80,
+    right: 24,
+    zIndex: 20,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+    minWidth: 120,
+  },
+  menuItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  menuItemText: {
+    fontSize: 16,
+    fontFamily: headerFontFamily,
+    color: '#e74c3c',
+    fontWeight: '500',
+  },
   profileSection: {
     alignItems: 'center',
     paddingTop: 60,
@@ -134,6 +277,20 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     marginBottom: 16,
     backgroundColor: '#ece6da',
+  },
+  profileAvatarPlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    marginBottom: 16,
+    backgroundColor: '#4a7cff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileAvatarText: {
+    fontSize: 40,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   profileName: {
     fontSize: 28,
@@ -247,12 +404,9 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#ece6da',
-  },
-  thoughtItem: {
-    marginBottom: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ece6da',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   thoughtText: {
     fontSize: 16,
@@ -265,6 +419,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#b0a99f',
     fontFamily: headerFontFamily,
+  },
+  thoughtImage: {
+    width: '100%',
+    height: 150,
+    borderRadius: 8,
+    marginTop: 8,
+    marginBottom: 8,
   },
   emptyState: {
     alignItems: 'center',

@@ -1,12 +1,33 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert } from 'react-native';
 import { authAPI } from '../services/api';
+import notificationService from '../services/notificationService';
 
 const globalBackground = '#f8f5ee';
 const cardBackground = '#fff9ed';
 const headerFontFamily = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
 export default function SettingsScreen({ navigation }) {
+  const [notificationStatus, setNotificationStatus] = useState('unknown');
+
+  useEffect(() => {
+    checkNotificationStatus();
+  }, []);
+
+  // Refresh notification status when screen comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      checkNotificationStatus();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
+  const checkNotificationStatus = async () => {
+    const status = await notificationService.checkPermissionStatus();
+    setNotificationStatus(status);
+  };
+
   const handleLogout = () => {
     Alert.alert(
       'Logout',
@@ -48,16 +69,33 @@ export default function SettingsScreen({ navigation }) {
       </TouchableOpacity>
       <Text style={styles.header}>Settings</Text>
       <View style={styles.card}>
-        <TouchableOpacity style={styles.settingRow}>
+        <TouchableOpacity style={styles.settingRow} onPress={() => navigation.navigate('Account')}>
           <Text style={styles.settingText}>Account</Text>
+          <Text style={styles.settingArrow}>→</Text>
         </TouchableOpacity>
         <View style={styles.separator} />
-        <TouchableOpacity style={styles.settingRow}>
-          <Text style={styles.settingText}>Notifications</Text>
+        <TouchableOpacity style={styles.settingRow} onPress={() => navigation.navigate('Notifications')}>
+          <View style={styles.settingContent}>
+            <Text style={styles.settingText}>Notifications</Text>
+            <View style={styles.statusIndicator}>
+              <View style={[
+                styles.statusDot,
+                { backgroundColor: notificationStatus === 'granted' ? '#27ae60' : notificationStatus === 'denied' ? '#e74c3c' : '#f39c12' }
+              ]} />
+              <Text style={[
+                styles.statusText,
+                { color: notificationStatus === 'granted' ? '#27ae60' : notificationStatus === 'denied' ? '#e74c3c' : '#f39c12' }
+              ]}>
+                {notificationService.getPermissionStatusText()}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.settingArrow}>→</Text>
         </TouchableOpacity>
         <View style={styles.separator} />
-        <TouchableOpacity style={styles.settingRow}>
+        <TouchableOpacity style={styles.settingRow} onPress={() => navigation.navigate('Privacy')}>
           <Text style={styles.settingText}>Privacy</Text>
+          <Text style={styles.settingArrow}>→</Text>
         </TouchableOpacity>
       </View>
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -100,11 +138,37 @@ const styles = StyleSheet.create({
   settingRow: {
     paddingVertical: 20,
     paddingHorizontal: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  settingContent: {
+    flex: 1,
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  statusText: {
+    fontSize: 12,
+    fontFamily: headerFontFamily,
+    fontWeight: '500',
   },
   settingText: {
     fontSize: 18,
     fontFamily: headerFontFamily,
     color: '#2c2c2c',
+  },
+  settingArrow: {
+    fontSize: 18,
+    color: '#666',
   },
   separator: {
     height: 1,

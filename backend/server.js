@@ -5,6 +5,8 @@ require('dotenv').config();
 const authRoutes = require('./routes/auth');
 const thoughtsRoutes = require('./routes/thoughts');
 const friendsRoutes = require('./routes/friends');
+const settingsRoutes = require('./routes/settings');
+const notificationsRoutes = require('./routes/notifications');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -51,6 +53,8 @@ app.get('/test-db', async (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/thoughts', thoughtsRoutes);
 app.use('/api/friends', friendsRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

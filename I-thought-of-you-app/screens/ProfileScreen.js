@@ -4,6 +4,7 @@ import { thoughtsAPI } from '../services/api';
 import { authAPI } from '../services/api';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../supabaseClient'; // We'll create this helper for upload
+import { useFocusEffect } from '@react-navigation/native';
 
 const globalBackground = '#f8f5ee';
 const cardBackground = '#fff9ed';
@@ -24,6 +25,13 @@ export default function ProfileScreen({ navigation }) {
     loadProfile();
     loadPinnedThoughts();
   }, []);
+
+  // Refresh pinned thoughts when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      loadPinnedThoughts();
+    }, [])
+  );
 
   const loadProfile = async () => {
     try {

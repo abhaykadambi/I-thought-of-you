@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, Image } from 'react-native';
 import { thoughtsAPI } from '../services/api';
 
 const globalBackground = '#f8f5ee';
@@ -21,6 +21,8 @@ export default function FeedScreen({ navigation }) {
     try {
       setLoading(true);
       const data = await thoughtsAPI.getAll();
+      console.log('Received thoughts data:', data.received);
+      console.log('Sent thoughts data:', data.sent);
       setReceivedThoughts(data.received || []);
       setSentThoughts(data.sent || []);
     } catch (error) {
@@ -54,10 +56,24 @@ export default function FeedScreen({ navigation }) {
             style={styles.thoughtCard}
             onPress={() => navigation.navigate('ThoughtDetailOverlay', { thought })}
           >
-            <Text style={styles.thoughtText}>
-              <Text style={styles.thoughtAuthor}>{thought.author}: </Text>
-              {thought.text}
-            </Text>
+            <View style={styles.thoughtHeader}>
+              {thought.authorAvatar ? (
+                <Image source={{ uri: thought.authorAvatar }} style={styles.authorAvatar} />
+              ) : (
+                <View style={styles.authorAvatarPlaceholder}>
+                  <Text style={styles.authorAvatarText}>
+                    {thought.author.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <Text style={styles.thoughtText} numberOfLines={2} ellipsizeMode="tail">
+                <Text style={styles.thoughtAuthor}>{thought.author}: </Text>
+                {thought.text}
+              </Text>
+            </View>
+            {thought.image && (
+              <Image source={{ uri: thought.image }} style={styles.thoughtImage} />
+            )}
             <Text style={styles.thoughtTime}>{thought.time}</Text>
           </TouchableOpacity>
         ))
@@ -79,14 +95,20 @@ export default function FeedScreen({ navigation }) {
                 author: 'You',
                 text: thought.text,
                 time: thought.time,
-                recipient: thought.recipient
+                recipient: thought.recipient,
+                image: thought.image
               }
             })}
           >
-            <Text style={styles.thoughtText}>
-              <Text style={styles.thoughtAuthor}>To {thought.recipient}: </Text>
-              {thought.text}
-            </Text>
+            <View style={styles.sentThoughtContainer}>
+              <Text style={styles.thoughtText} numberOfLines={2} ellipsizeMode="tail">
+                <Text style={styles.thoughtAuthor}>To {thought.recipient}: </Text>
+                {thought.text}
+              </Text>
+            </View>
+            {thought.image && (
+              <Image source={{ uri: thought.image }} style={styles.thoughtImage} />
+            )}
             <Text style={styles.thoughtTime}>{thought.time}</Text>
           </TouchableOpacity>
         ))
@@ -210,11 +232,40 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
+  thoughtHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+    flex: 1,
+  },
+  authorAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    marginRight: 10,
+    backgroundColor: '#e0e0e0',
+  },
+  authorAvatarPlaceholder: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    marginRight: 10,
+    backgroundColor: '#4a7cff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  authorAvatarText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
   thoughtText: {
     fontSize: 16,
     color: '#2c2c2c',
     fontFamily: sectionFontFamily,
     marginBottom: 6,
+    flex: 1,
+    flexShrink: 1,
   },
   thoughtAuthor: {
     fontWeight: 'bold',
@@ -225,5 +276,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#b0a99f',
     fontFamily: sectionFontFamily,
+  },
+  thoughtImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 10,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  sentThoughtContainer: {
+    flex: 1,
   },
 }); 
