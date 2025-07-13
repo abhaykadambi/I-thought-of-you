@@ -86,14 +86,11 @@ export default function ProfileScreen({ navigation }) {
     if (!result.canceled && result.assets && result.assets[0]) {
       setUploading(true);
       try {
-        console.log('Starting avatar upload...');
         const file = result.assets[0];
-        console.log('File selected:', file.uri);
         
         // Convert image to base64
         const response = await fetch(file.uri);
         const blob = await response.blob();
-        console.log('Blob created, size:', blob.size);
         
         // Convert blob to base64
         const reader = new FileReader();
@@ -104,8 +101,6 @@ export default function ProfileScreen({ navigation }) {
         reader.readAsDataURL(blob);
         const base64Data = await base64Promise;
         
-        console.log('Base64 data length:', base64Data.length);
-        console.log('Setting avatar as base64 data...');
         setEditedAvatar(base64Data);
       } catch (error) {
         console.error('Avatar upload error:', error);
@@ -118,9 +113,7 @@ export default function ProfileScreen({ navigation }) {
 
   const handleSave = async () => {
     try {
-      console.log('Saving profile with data:', { name: editedName, avatarLength: editedAvatar ? editedAvatar.length : 0 });
       await authAPI.updateProfile({ name: editedName, avatar: editedAvatar });
-      console.log('Profile update successful');
       setUser((prev) => ({ ...prev, name: editedName, avatar: editedAvatar }));
       setEditMode(false);
       await loadProfile();
@@ -148,6 +141,15 @@ export default function ProfileScreen({ navigation }) {
       }}
     >
       <View style={styles.thoughtHeader}>
+        {item.authorAvatar ? (
+          <Image source={{ uri: item.authorAvatar }} style={styles.pinnedAuthorAvatar} />
+        ) : (
+          <View style={styles.pinnedAuthorAvatarPlaceholder}>
+            <Text style={styles.pinnedAuthorAvatarText}>
+              {item.author.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        )}
         <Text style={styles.thoughtText}>
           <Text style={styles.thoughtAuthor}>{item.author}: </Text>
           {item.text}
@@ -188,8 +190,6 @@ export default function ProfileScreen({ navigation }) {
             <Image 
               source={{ uri: editedAvatar || defaultAvatar }} 
               style={styles.avatar}
-              onError={(error) => console.log('Edit mode image load error:', error)}
-              onLoad={() => console.log('Edit mode image loaded')}
             />
             <TouchableOpacity style={styles.avatarPickerButton} onPress={pickAvatarImage} disabled={uploading}>
               <Text style={styles.avatarPickerText}>{uploading ? 'Uploading...' : 'Pick Profile Picture'}</Text>
@@ -207,8 +207,6 @@ export default function ProfileScreen({ navigation }) {
             <Image 
               source={{ uri: user?.avatar || defaultAvatar }} 
               style={styles.avatar}
-              onError={(error) => console.log('Image load error:', error)}
-              onLoad={() => console.log('Image loaded successfully')}
             />
             <Text style={styles.name}>{user?.name || 'No Name'}</Text>
             <Text style={styles.email}>{user?.email}</Text>
@@ -324,6 +322,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
+  },
+  pinnedAuthorAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    marginRight: 10,
+    backgroundColor: '#e0e0e0',
+  },
+  pinnedAuthorAvatarPlaceholder: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    marginRight: 10,
+    backgroundColor: '#4a7cff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pinnedAuthorAvatarText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   thoughtText: {
     fontSize: 16,

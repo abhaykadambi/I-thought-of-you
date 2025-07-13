@@ -10,9 +10,7 @@ export default function ThoughtDetailOverlay({ route, navigation }) {
   const { thought } = route.params;
   const [isPinned, setIsPinned] = useState(false);
 
-  // Debug logging
-  console.log('ThoughtDetailOverlay received thought:', thought);
-  console.log('Thought image:', thought.image);
+
 
   // Check if thought is already pinned when component mounts
   useEffect(() => {
@@ -107,8 +105,6 @@ export default function ThoughtDetailOverlay({ route, navigation }) {
               source={{ uri: thought.image }} 
               style={styles.thoughtImage}
               resizeMode="cover"
-              onError={(error) => console.log('Image loading error:', error)}
-              onLoad={() => console.log('Image loaded successfully')}
             />
           </View>
         )}

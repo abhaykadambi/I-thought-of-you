@@ -246,7 +246,7 @@ router.get('/pinned', authenticateToken, async (req, res) => {
           text,
           image_url,
           created_at,
-          sender:users!thoughts_sender_id_fkey(name)
+          sender:users!thoughts_sender_id_fkey(id, name, avatar)
         )
       `)
       .eq('user_id', userId)
@@ -260,6 +260,7 @@ router.get('/pinned', authenticateToken, async (req, res) => {
     const formattedThoughts = pinnedThoughts.map(pin => ({
       id: pin.thought.id,
       author: pin.thought.sender.name,
+      authorAvatar: pin.thought.sender.avatar,
       text: pin.thought.text,
       image: pin.thought.image_url,
       time: formatTime(pin.thought.created_at)

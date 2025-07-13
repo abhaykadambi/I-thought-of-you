@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Image, Alert, TouchableWithoutFeedback, Keyboard, ScrollView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import DropDownPicker from 'react-native-dropdown-picker';
 import { thoughtsAPI, friendsAPI } from '../services/api';
@@ -70,15 +70,16 @@ export default function ComposeThoughtScreen({ route, navigation }) {
       return;
     }
 
-    // Launch image picker
+    // Launch image picker with aggressive compression for smaller file sizes
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 0.8,
+      quality: 0.3, // Very low quality to keep files under 5MB
+      allowsMultipleSelection: false,
     });
 
-    if (!result.canceled) {
+    if (!result.canceled && result.assets && result.assets[0]) {
       setSelectedImage(result.assets[0].uri);
     }
   };
@@ -109,7 +110,7 @@ export default function ComposeThoughtScreen({ route, navigation }) {
           });
 
           // Upload image first
-          const uploadResponse = await fetch('http://localhost:3000/api/thoughts/upload-image', {
+          const uploadResponse = await fetch('https://i-thought-of-you-production.up.railway.app/api/thoughts/upload-image', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${await AsyncStorage.getItem('authToken')}`,
@@ -144,7 +145,8 @@ export default function ComposeThoughtScreen({ route, navigation }) {
       setSelectedImage(null);
       
       Alert.alert('Success', 'Thought sent successfully!');
-      // Optionally navigate back or to feed
+      // Navigate back to feed to show the new thought
+      navigation.goBack();
     } catch (error) {
       Alert.alert('Error', error.response?.data?.error || 'Failed to send thought. Please try again.');
     }
@@ -155,12 +157,19 @@ export default function ComposeThoughtScreen({ route, navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <Text style={styles.header}>Send a Thought</Text>
-      <View style={styles.card}>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.header}>Send a Thought</Text>
+          <View style={styles.card}>
         <Text style={styles.label}>To</Text>
         
         {/* Friend Selection - Show dropdown or selected friend */}
@@ -220,6 +229,9 @@ export default function ComposeThoughtScreen({ route, navigation }) {
           multiline
           numberOfLines={4}
           textAlignVertical="top"
+          returnKeyType="done"
+          blurOnSubmit={true}
+          onSubmitEditing={Keyboard.dismiss}
         />
         
         {/* Image Attachment Section */}
@@ -247,7 +259,9 @@ export default function ComposeThoughtScreen({ route, navigation }) {
           <Text style={styles.sendButtonText}>Send</Text>
         </TouchableOpacity>
       </View>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -255,8 +269,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: globalBackground,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
     paddingTop: 40,
     paddingHorizontal: 0,
+    paddingBottom: 40,
   },
   header: {
     fontSize: 28,

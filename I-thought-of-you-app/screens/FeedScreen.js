@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, Image, RefreshControl } from 'react-native';
 import { thoughtsAPI } from '../services/api';
+import { useFocusEffect } from '@react-navigation/native';
 
 const globalBackground = '#f8f5ee';
 const cardBackground = '#fff9ed';
@@ -12,17 +13,23 @@ export default function FeedScreen({ navigation }) {
   const [receivedThoughts, setReceivedThoughts] = useState([]);
   const [sentThoughts, setSentThoughts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadThoughts();
   }, []);
 
+  // Refresh thoughts when screen comes into focus (e.g., after creating a thought)
+  useFocusEffect(
+    React.useCallback(() => {
+      loadThoughts();
+    }, [])
+  );
+
   const loadThoughts = async () => {
     try {
       setLoading(true);
       const data = await thoughtsAPI.getAll();
-      console.log('Received thoughts data:', data.received);
-      console.log('Sent thoughts data:', data.sent);
       setReceivedThoughts(data.received || []);
       setSentThoughts(data.sent || []);
     } catch (error) {
@@ -31,6 +38,12 @@ export default function FeedScreen({ navigation }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadThoughts();
+    setRefreshing(false);
   };
 
   const renderEmptyState = (type) => (
@@ -46,7 +59,18 @@ export default function FeedScreen({ navigation }) {
   );
 
   const renderReceivedThoughts = () => (
-    <ScrollView style={styles.feedContainer} showsVerticalScrollIndicator={false}>
+    <ScrollView 
+      style={styles.feedContainer} 
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={['#4a7cff']}
+          tintColor="#4a7cff"
+        />
+      }
+    >
       {receivedThoughts.length === 0 ? (
         renderEmptyState('received')
       ) : (
@@ -82,7 +106,18 @@ export default function FeedScreen({ navigation }) {
   );
 
   const renderSentThoughts = () => (
-    <ScrollView style={styles.feedContainer} showsVerticalScrollIndicator={false}>
+    <ScrollView 
+      style={styles.feedContainer} 
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={['#4a7cff']}
+          tintColor="#4a7cff"
+        />
+      }
+    >
       {sentThoughts.length === 0 ? (
         renderEmptyState('sent')
       ) : (
