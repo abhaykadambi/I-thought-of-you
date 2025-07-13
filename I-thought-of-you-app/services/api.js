@@ -157,9 +157,12 @@ export const friendsAPI = {
     return response.data;
   },
 
-  // Send a friend request by phone number
-  sendFriendRequest: async (phone) => {
-    const response = await api.post('/friends/request', { phone });
+  // Send a friend request by phone number or email
+  sendFriendRequest: async (contact) => {
+    // Simple email regex
+    const isEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contact);
+    const payload = isEmail ? { email: contact } : { phone: contact };
+    const response = await api.post('/friends/request', payload);
     return response.data;
   },
 

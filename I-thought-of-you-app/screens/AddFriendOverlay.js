@@ -7,7 +7,7 @@ const cardBackground = '#fff9ed';
 const headerFontFamily = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
 export default function AddFriendOverlay({ navigation }) {
-  const [phone, setPhone] = useState('');
+  const [contact, setContact] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
   const [sendSuccess, setSendSuccess] = useState('');
@@ -15,14 +15,17 @@ export default function AddFriendOverlay({ navigation }) {
   const handleSendRequest = async () => {
     setSendError('');
     setSendSuccess('');
-    if (!/^\d{8,}$/.test(phone)) {
-      setSendError('Enter a valid phone number (at least 8 digits)');
+    // Simple email regex
+    const isEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contact);
+    const isPhone = /^\d{8,}$/.test(contact);
+    if (!isEmail && !isPhone) {
+      setSendError('Enter a valid email address or phone number (at least 8 digits)');
       return;
     }
     setSending(true);
     try {
-      await friendsAPI.sendFriendRequest(phone);
-      setPhone('');
+      await friendsAPI.sendFriendRequest(contact);
+      setContact('');
       setSendSuccess('Friend request sent!');
     } catch (error) {
       setSendError(error.response?.data?.error || 'Failed to send request');
@@ -53,10 +56,12 @@ export default function AddFriendOverlay({ navigation }) {
         <View style={styles.addRow}>
           <TextInput
             style={styles.input}
-            placeholder="Add by phone number"
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
+            placeholder="Add by phone number or email"
+            value={contact}
+            onChangeText={setContact}
+            keyboardType="default"
+            autoCapitalize="none"
+            autoCorrect={false}
             placeholderTextColor="#b0a99f"
             editable={!sending}
           />

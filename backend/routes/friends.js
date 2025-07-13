@@ -180,28 +180,43 @@ router.post('/suggested', authenticateToken, async (req, res) => {
   }
 });
 
-// POST /friends/request - Send a friend request by phone number
+// POST /friends/request - Send a friend request by phone number or email
 router.post('/request', authenticateToken, async (req, res) => {
   try {
     const senderId = req.user.userId;
-    const { phone } = req.body;
-    if (!phone) {
-      return res.status(400).json({ error: 'Phone number is required' });
+    const { phone, email } = req.body;
+    if (!phone && !email) {
+      return res.status(400).json({ error: 'Phone number or email is required' });
     }
-    // Find recipient by phone
-    const { data: recipient, error: userError } = await supabase
-      .from('users')
-      .select('id, phone')
-      .eq('phone', phone)
-      .single();
-    if (userError || !recipient) {
-      return res.status(404).json({ error: 'User with that phone number not found' });
+    let recipient;
+    if (email) {
+      // Find recipient by email
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, email')
+        .eq('email', email)
+        .single();
+      if (error || !data) {
+        return res.status(404).json({ error: 'User with that email not found' });
+      }
+      recipient = data;
+    } else {
+      // Find recipient by phone
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, phone')
+        .eq('phone', phone)
+        .single();
+      if (error || !data) {
+        return res.status(404).json({ error: 'User with that phone number not found' });
+      }
+      recipient = data;
     }
     if (recipient.id === senderId) {
       return res.status(400).json({ error: 'Cannot send friend request to yourself' });
     }
     // Check if already friends (for now, just check if a request is accepted)
-    const { data: existingAccepted, error: acceptedError } = await supabase
+    const { data: existingAccepted } = await supabase
       .from('friend_requests')
       .select('id')
       .or(`and(sender_id.eq.${senderId},recipient_id.eq.${recipient.id}),and(sender_id.eq.${recipient.id},recipient_id.eq.${senderId})`)
@@ -211,7 +226,7 @@ router.post('/request', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'You are already friends' });
     }
     // Check if a pending request already exists
-    const { data: existingRequest, error: requestError } = await supabase
+    const { data: existingRequest } = await supabase
       .from('friend_requests')
       .select('id, status')
       .or(`and(sender_id.eq.${senderId},recipient_id.eq.${recipient.id}),and(sender_id.eq.${recipient.id},recipient_id.eq.${senderId})`)
