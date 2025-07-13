@@ -1,16 +1,11 @@
--- Enable the http extension for webhooks
-CREATE EXTENSION IF NOT EXISTS "http" WITH SCHEMA "extensions";
-
 -- Create function to notify backend about new thoughts
+-- Note: This function will be called by the backend directly instead of using http_post
 CREATE OR REPLACE FUNCTION notify_new_thought()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Call the webhook endpoint
-  PERFORM http_post(
-    url := 'https://i-thought-of-you-production.up.railway.app/api/notifications/webhook/new-thought',
-    body := json_build_object('thought_id', NEW.id),
-    headers := '{"Content-Type": "application/json"}'::json
-  );
+  -- For now, we'll just log that a new thought was created
+  -- The actual notification will be sent by the backend when creating the thought
+  RAISE NOTICE 'New thought created with ID: %', NEW.id;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
