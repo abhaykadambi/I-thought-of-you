@@ -33,16 +33,6 @@ export default function SignupScreen({ navigation }) {
     }
   };
 
-  const handleGoogleSignup = () => {
-    Alert.alert('Google Signup', 'Google signup would be implemented here');
-    // navigation.navigate('MainApp');
-  };
-
-  const handleICloudSignup = () => {
-    Alert.alert('iCloud Signup', 'iCloud signup would be implemented here');
-    // navigation.navigate('MainApp');
-  };
-
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -51,15 +41,7 @@ export default function SignupScreen({ navigation }) {
       <Text style={styles.title}>Create Account</Text>
       <Text style={styles.subtitle}>Sign up to get started</Text>
       <View style={styles.card}>
-        {/* Social Signup Buttons */}
-        <View style={styles.socialContainer}>
-          <TouchableOpacity style={styles.googleButton} onPress={handleGoogleSignup}>
-            <Text style={styles.googleButtonText}>Sign up with Google</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.icloudButton} onPress={handleICloudSignup}>
-            <Text style={styles.icloudButtonText}>Sign up with iCloud</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Remove Social Signup Buttons */}
         {/* Divider */}
         <View style={styles.dividerContainer}>
           <View style={styles.dividerLine} />

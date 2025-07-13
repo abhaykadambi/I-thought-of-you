@@ -23,16 +23,6 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
-  const handleGoogleLogin = () => {
-    Alert.alert('Google Login', 'Google login would be implemented here');
-    // navigation.navigate('MainApp');
-  };
-
-  const handleICloudLogin = () => {
-    Alert.alert('iCloud Login', 'iCloud login would be implemented here');
-    // navigation.navigate('MainApp');
-  };
-
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -41,15 +31,7 @@ export default function LoginScreen({ navigation }) {
       <Text style={styles.title}>Welcome Back</Text>
       <Text style={styles.subtitle}>Sign in to continue</Text>
       <View style={styles.card}>
-        {/* Social Login Buttons */}
-        <View style={styles.socialContainer}>
-          <TouchableOpacity style={styles.googleButton} onPress={handleGoogleLogin}>
-            <Text style={styles.googleButtonText}>Continue with Google</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.icloudButton} onPress={handleICloudLogin}>
-            <Text style={styles.icloudButtonText}>Continue with iCloud</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Remove Social Login Buttons */}
         {/* Divider */}
         <View style={styles.dividerContainer}>
           <View style={styles.dividerLine} />
