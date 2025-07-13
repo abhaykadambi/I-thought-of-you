@@ -7,7 +7,7 @@ RETURNS TRIGGER AS $$
 BEGIN
   -- Call the webhook endpoint
   PERFORM http_post(
-    url := 'https://your-backend-url.com/api/notifications/webhook/new-thought',
+    url := 'https://i-thought-of-you-production.up.railway.app/api/notifications/webhook/new-thought',
     body := json_build_object('thought_id', NEW.id),
     headers := '{"Content-Type": "application/json"}'::json
   );

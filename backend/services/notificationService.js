@@ -74,7 +74,7 @@ class NotificationService {
     return this.sendNotificationToUser(
       recipientId,
       'Someone thought of you! 💭',
-      `${senderName} just had a thought about you`,
+      'Someone just had a thought about you 💭',
       {
         type: 'new_thought',
         senderName: senderName

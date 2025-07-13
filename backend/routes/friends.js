@@ -45,7 +45,6 @@ router.get('/requests', authenticateToken, async (req, res) => {
     if (incomingError || outgoingError) {
       return res.status(500).json({ error: 'Failed to fetch friend requests' });
     }
-    console.log('INCOMING REQUESTS:', JSON.stringify(incoming, null, 2));
     res.json({ incoming, outgoing });
   } catch (error) {
     console.error('Get friend requests error:', error);
@@ -186,7 +185,6 @@ router.post('/request', authenticateToken, async (req, res) => {
   try {
     const senderId = req.user.userId;
     const { phone } = req.body;
-    console.log('FRIEND REQUEST: senderId:', senderId, 'phone:', phone);
     if (!phone) {
       return res.status(400).json({ error: 'Phone number is required' });
     }
@@ -196,13 +194,10 @@ router.post('/request', authenticateToken, async (req, res) => {
       .select('id, phone')
       .eq('phone', phone)
       .single();
-    console.log('FRIEND REQUEST: recipient found:', recipient, 'error:', userError);
     if (userError || !recipient) {
-      console.log('FRIEND REQUEST: recipient not found or error');
       return res.status(404).json({ error: 'User with that phone number not found' });
     }
     if (recipient.id === senderId) {
-      console.log('FRIEND REQUEST: cannot send to self');
       return res.status(400).json({ error: 'Cannot send friend request to yourself' });
     }
     // Check if already friends (for now, just check if a request is accepted)
@@ -212,9 +207,7 @@ router.post('/request', authenticateToken, async (req, res) => {
       .or(`and(sender_id.eq.${senderId},recipient_id.eq.${recipient.id}),and(sender_id.eq.${recipient.id},recipient_id.eq.${senderId})`)
       .eq('status', 'accepted')
       .maybeSingle();
-    console.log('FRIEND REQUEST: existingAccepted:', existingAccepted, 'error:', acceptedError);
     if (existingAccepted) {
-      console.log('FRIEND REQUEST: already friends');
       return res.status(400).json({ error: 'You are already friends' });
     }
     // Check if a pending request already exists
@@ -224,9 +217,7 @@ router.post('/request', authenticateToken, async (req, res) => {
       .or(`and(sender_id.eq.${senderId},recipient_id.eq.${recipient.id}),and(sender_id.eq.${recipient.id},recipient_id.eq.${senderId})`)
       .neq('status', 'declined')
       .maybeSingle();
-    console.log('FRIEND REQUEST: existingRequest:', existingRequest, 'error:', requestError);
     if (existingRequest) {
-      console.log('FRIEND REQUEST: request already exists');
       return res.status(400).json({ error: 'A friend request already exists' });
     }
     // Create friend request
@@ -242,7 +233,6 @@ router.post('/request', authenticateToken, async (req, res) => {
       ])
       .select('id, sender_id, recipient_id, status, created_at')
       .single();
-    console.log('FRIEND REQUEST: created:', request, 'error:', error);
     if (error) {
       console.error('Error creating friend request:', error);
       return res.status(500).json({ error: 'Failed to create friend request' });

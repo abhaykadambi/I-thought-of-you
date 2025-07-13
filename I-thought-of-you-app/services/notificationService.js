@@ -146,7 +146,6 @@ class NotificationService {
       const token = await Notifications.getExpoPushTokenAsync({
         projectId: '35bc5d75-73b4-4250-b2d1-470d61a7279d',
       });
-      console.log('Expo push token:', token.data);
       return token.data;
     } catch (error) {
       console.error('Error getting push token:', error);
@@ -183,12 +182,10 @@ class NotificationService {
   // Set up notification listener
   setupNotificationListener(navigation) {
     const subscription = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification received:', notification);
       // You can handle the notification here if needed
     });
 
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification response received:', response);
       // Navigate to the appropriate screen when notification is tapped
       if (response.notification.request.content.data?.type === 'new_thought' && navigation) {
         // Navigate to the feed screen to show the new thought

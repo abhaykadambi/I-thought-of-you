@@ -43,7 +43,6 @@ export default function ComposeThoughtScreen({ route, navigation }) {
     try {
       setLoading(true);
       const response = await friendsAPI.getAll();
-      console.log('Friends API response:', response);
       const friendsList = response.users.map(friend => {
         return {
           label: friend.name,
@@ -52,7 +51,6 @@ export default function ComposeThoughtScreen({ route, navigation }) {
           email: friend.email,
         };
       });
-      console.log('Formatted friends list:', friendsList);
       setFriends(friendsList);
     } catch (error) {
       console.error('Error fetching friends:', error);
@@ -180,7 +178,6 @@ export default function ComposeThoughtScreen({ route, navigation }) {
             items={friends}
             setOpen={setOpen}
             setValue={(callback) => {
-              console.log('Dropdown value changing to:', callback);
               setSelectedFriend(callback);
             }}
             setItems={setFriends}

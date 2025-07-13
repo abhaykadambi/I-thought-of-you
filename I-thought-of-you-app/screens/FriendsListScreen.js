@@ -39,7 +39,7 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
       const user = await AsyncStorage.getItem('user');
       if (user) {
         const parsed = JSON.parse(user);
-        console.log('CURRENT USER ID:', parsed.id);
+        // console.log('CURRENT USER ID:', parsed.id);
       }
     })();
   }, []);
@@ -47,19 +47,16 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
   // Debug: Log unhandled promise rejections
   if (typeof global !== 'undefined' && global.process && global.process.on) {
     global.process.on('unhandledRejection', (reason, promise) => {
-      console.log('UNHANDLED PROMISE REJECTION:', reason);
+      // console.log('UNHANDLED PROMISE REJECTION:', reason);
     });
   }
 
   const loadIncomingRequests = async () => {
-    console.log('CALLING loadIncomingRequests');
     try {
       const data = await friendsAPI.getRequests();
-      console.log('FULL RESPONSE FROM API:', data);
-      console.log('INCOMING REQUESTS FROM API:', data.incoming);
       setIncomingRequests((data.incoming || []).filter(r => r.status === 'pending'));
     } catch (error) {
-      console.log('ERROR IN loadIncomingRequests:', error);
+      console.error('Error loading incoming requests:', error);
       setIncomingRequests([]);
     }
   };
