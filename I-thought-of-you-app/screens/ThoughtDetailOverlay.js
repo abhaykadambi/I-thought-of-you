@@ -7,14 +7,14 @@ const cardBackground = '#fff9ed';
 const headerFontFamily = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
 export default function ThoughtDetailOverlay({ route, navigation }) {
-  const { thought } = route.params;
-  const [isPinned, setIsPinned] = useState(false);
+  const { thought, isPinned: initialPinStatus } = route.params;
+  const [isPinned, setIsPinned] = useState(initialPinStatus || false);
 
-
-
-  // Check if thought is already pinned when component mounts
+  // Check if thought is already pinned when component mounts (only if not provided)
   useEffect(() => {
-    checkPinStatus();
+    if (initialPinStatus === undefined) {
+      checkPinStatus();
+    }
   }, []);
 
   const checkPinStatus = async () => {

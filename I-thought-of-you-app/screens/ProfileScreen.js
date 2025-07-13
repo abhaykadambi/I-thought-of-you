@@ -29,8 +29,11 @@ export default function ProfileScreen({ navigation }) {
   // Refresh pinned thoughts when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      loadPinnedThoughts();
-    }, [])
+      // Only reload if we don't have any pinned thoughts loaded yet
+      if (pinnedThoughts.length === 0) {
+        loadPinnedThoughts();
+      }
+    }, [pinnedThoughts.length])
   );
 
   const loadProfile = async () => {
@@ -136,7 +139,10 @@ export default function ProfileScreen({ navigation }) {
       disabled={editMode}
       onPress={() => {
         if (!editMode) {
-          navigation.navigate('ThoughtDetailOverlay', { thought: item });
+          navigation.navigate('ThoughtDetailOverlay', { 
+            thought: item,
+            isPinned: true // Since this is from pinned thoughts, it's definitely pinned
+          });
         }
       }}
     >

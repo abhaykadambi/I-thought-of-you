@@ -14,6 +14,7 @@ export default function FeedScreen({ navigation }) {
   const [sentThoughts, setSentThoughts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [lastLoadTime, setLastLoadTime] = useState(0);
 
   useEffect(() => {
     loadThoughts();
@@ -22,16 +23,30 @@ export default function FeedScreen({ navigation }) {
   // Refresh thoughts when screen comes into focus (e.g., after creating a thought)
   useFocusEffect(
     React.useCallback(() => {
-      loadThoughts();
-    }, [])
+      // Only reload if we don't have any thoughts loaded yet or if it's been more than 5 minutes
+      const now = Date.now();
+      const shouldReload = (receivedThoughts.length === 0 && sentThoughts.length === 0) || 
+                          (lastLoadTime > 0 && (now - lastLoadTime) > 300000); // 5 minutes
+      
+      if (shouldReload) {
+        loadThoughts();
+      }
+    }, [receivedThoughts.length, sentThoughts.length, lastLoadTime])
   );
 
-  const loadThoughts = async () => {
+  const loadThoughts = async (forceRefresh = false) => {
     try {
+      // Check if we should skip loading (cache for 30 seconds unless force refresh)
+      const now = Date.now();
+      if (!forceRefresh && lastLoadTime > 0 && (now - lastLoadTime) < 30000) {
+        return;
+      }
+
       setLoading(true);
       const data = await thoughtsAPI.getAll();
       setReceivedThoughts(data.received || []);
       setSentThoughts(data.sent || []);
+      setLastLoadTime(now);
     } catch (error) {
       console.error('Error loading thoughts:', error);
       Alert.alert('Error', 'Failed to load thoughts. Please try again.');
@@ -42,7 +57,7 @@ export default function FeedScreen({ navigation }) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadThoughts();
+    await loadThoughts(true); // Force refresh
     setRefreshing(false);
   };
 

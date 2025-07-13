@@ -84,43 +84,38 @@ router.get('/', authenticateToken, async (req, res) => {
 
     const friendIds = friends.map(friend => friend.id);
 
-    // Get received thoughts only from friends
-    const { data: receivedThoughts, error: receivedError } = await supabase
-      .from('thoughts')
-      .select(`
-        id,
-        text,
-        image_url,
-        created_at,
-        sender:users!thoughts_sender_id_fkey(id, name, avatar)
-      `)
-      .eq('recipient_id', userId)
-      .in('sender_id', friendIds)
-      .order('created_at', { ascending: false });
-
-    if (receivedError) {
-      console.error('Error fetching received thoughts:', receivedError);
-      return res.status(500).json({ error: 'Failed to fetch received thoughts' });
+    // If no friends, return empty arrays
+    if (friendIds.length === 0) {
+      return res.json({
+        received: [],
+        sent: []
+      });
     }
 
-    // Get sent thoughts only to friends
-    const { data: sentThoughts, error: sentError } = await supabase
+    // Get all thoughts in a single query with proper joins
+    const { data: allThoughts, error: thoughtsError } = await supabase
       .from('thoughts')
       .select(`
         id,
         text,
         image_url,
         created_at,
+        sender_id,
+        recipient_id,
+        sender:users!thoughts_sender_id_fkey(id, name, avatar),
         recipient:users!thoughts_recipient_id_fkey(id, name)
       `)
-      .eq('sender_id', userId)
-      .in('recipient_id', friendIds)
+      .or(`and(recipient_id.eq.${userId},sender_id.in.(${friendIds.join(',')})),and(sender_id.eq.${userId},recipient_id.in.(${friendIds.join(',')}))`)
       .order('created_at', { ascending: false });
 
-    if (sentError) {
-      console.error('Error fetching sent thoughts:', sentError);
-      return res.status(500).json({ error: 'Failed to fetch sent thoughts' });
+    if (thoughtsError) {
+      console.error('Error fetching thoughts:', thoughtsError);
+      return res.status(500).json({ error: 'Failed to fetch thoughts' });
     }
+
+    // Separate received and sent thoughts
+    const receivedThoughts = allThoughts.filter(thought => thought.recipient_id === userId);
+    const sentThoughts = allThoughts.filter(thought => thought.sender_id === userId);
 
     // Format the data
     const formattedReceived = receivedThoughts.map(thought => ({
