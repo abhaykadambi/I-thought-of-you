@@ -211,18 +211,8 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(500).json({ error: 'Failed to create thought' });
     }
 
-    // Send push notification to recipient (don't wait for it to complete)
-    notificationService.sendThoughtNotification(recipient.id, sender.name)
-      .then(success => {
-        if (success) {
-          console.log(`Push notification sent to ${recipient.id} for thought from ${sender.name}`);
-        } else {
-          console.log(`Failed to send push notification to ${recipient.id}`);
-        }
-      })
-      .catch(error => {
-        console.error('Error sending push notification:', error);
-      });
+    // Note: Push notification will be sent automatically via Supabase trigger
+    // when the thought is inserted into the database
 
     res.status(201).json({
       message: 'Thought sent successfully',

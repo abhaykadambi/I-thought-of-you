@@ -1,6 +1,7 @@
 const express = require('express');
 const supabase = require('../config/supabase');
 const { authenticateToken } = require('../middleware/auth');
+const notificationService = require('../services/notificationService');
 
 const router = express.Router();
 
@@ -53,6 +54,53 @@ router.delete('/unregister-token', authenticateToken, async (req, res) => {
 
   } catch (error) {
     console.error('Unregister token error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Webhook endpoint for Supabase triggers
+router.post('/webhook/new-thought', async (req, res) => {
+  try {
+    const { thought_id } = req.body;
+
+    if (!thought_id) {
+      console.error('No thought_id provided in webhook');
+      return res.status(400).json({ error: 'thought_id is required' });
+    }
+
+    // Get the thought details
+    const { data: thought, error: thoughtError } = await supabase
+      .from('thoughts')
+      .select(`
+        id,
+        text,
+        recipient_id,
+        sender:users!thoughts_sender_id_fkey(name)
+      `)
+      .eq('id', thought_id)
+      .single();
+
+    if (thoughtError || !thought) {
+      console.error('Error fetching thought for notification:', thoughtError);
+      return res.status(404).json({ error: 'Thought not found' });
+    }
+
+    // Send push notification to recipient
+    const success = await notificationService.sendThoughtNotification(
+      thought.recipient_id, 
+      thought.sender.name
+    );
+
+    if (success) {
+      console.log(`Push notification sent successfully for thought ${thought_id}`);
+      res.status(200).json({ message: 'Notification sent successfully' });
+    } else {
+      console.log(`Failed to send push notification for thought ${thought_id}`);
+      res.status(500).json({ error: 'Failed to send notification' });
+    }
+
+  } catch (error) {
+    console.error('Webhook error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
