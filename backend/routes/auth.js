@@ -151,6 +151,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
 router.put('/profile', authenticateToken, async (req, res) => {
   try {
     const { name, avatar } = req.body;
+    // Only log avatar length, not the full data
     console.log('Profile update request:', { name, avatarLength: avatar ? avatar.length : 0 });
     
     if (!name) {
@@ -159,11 +160,13 @@ router.put('/profile', authenticateToken, async (req, res) => {
     
     const updates = { name };
     if (avatar) {
+      // Only log avatar length
       console.log('Adding avatar to updates, length:', avatar.length);
       updates.avatar = avatar;
     }
     updates.updated_at = new Date().toISOString();
 
+    // Only log avatar length in updates
     console.log('Updating user with data:', { userId: req.user.userId, updates: { name: updates.name, avatarLength: updates.avatar ? updates.avatar.length : 0 } });
 
     const { data: user, error } = await supabase

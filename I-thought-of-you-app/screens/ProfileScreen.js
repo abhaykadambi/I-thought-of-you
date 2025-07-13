@@ -118,7 +118,7 @@ export default function ProfileScreen({ navigation }) {
 
   const handleSave = async () => {
     try {
-      console.log('Saving profile with data:', { name: editedName, avatar: editedAvatar });
+      console.log('Saving profile with data:', { name: editedName, avatarLength: editedAvatar ? editedAvatar.length : 0 });
       await authAPI.updateProfile({ name: editedName, avatar: editedAvatar });
       console.log('Profile update successful');
       setUser((prev) => ({ ...prev, name: editedName, avatar: editedAvatar }));
@@ -189,7 +189,7 @@ export default function ProfileScreen({ navigation }) {
               source={{ uri: editedAvatar || defaultAvatar }} 
               style={styles.avatar}
               onError={(error) => console.log('Edit mode image load error:', error)}
-              onLoad={() => console.log('Edit mode image loaded:', editedAvatar || defaultAvatar)}
+              onLoad={() => console.log('Edit mode image loaded')}
             />
             <TouchableOpacity style={styles.avatarPickerButton} onPress={pickAvatarImage} disabled={uploading}>
               <Text style={styles.avatarPickerText}>{uploading ? 'Uploading...' : 'Pick Profile Picture'}</Text>
@@ -208,7 +208,7 @@ export default function ProfileScreen({ navigation }) {
               source={{ uri: user?.avatar || defaultAvatar }} 
               style={styles.avatar}
               onError={(error) => console.log('Image load error:', error)}
-              onLoad={() => console.log('Image loaded successfully:', user?.avatar || defaultAvatar)}
+              onLoad={() => console.log('Image loaded successfully')}
             />
             <Text style={styles.name}>{user?.name || 'No Name'}</Text>
             <Text style={styles.email}>{user?.email}</Text>
