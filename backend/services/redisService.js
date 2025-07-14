@@ -8,9 +8,15 @@ class RedisService {
   }
 
   async connect() {
+    // Only connect if REDIS_URL is set
+    if (!process.env.REDIS_URL) {
+      console.log('No REDIS_URL set. Skipping Redis connection. Using in-memory fallback.');
+      this.isConnected = false;
+      return;
+    }
     try {
       this.client = redis.createClient({
-        url: process.env.REDIS_URL || 'redis://localhost:6379',
+        url: process.env.REDIS_URL,
         socket: {
           connectTimeout: (process.env.REDIS_TIMEOUT || 10) * 1000,
           reconnectStrategy: (retries) => {
@@ -36,7 +42,8 @@ class RedisService {
       await this.client.connect();
     } catch (error) {
       console.error('Redis connection error:', error);
-      throw error;
+      this.isConnected = false;
+      // Do not throw error, fallback to in-memory
     }
   }
 

@@ -75,10 +75,18 @@ app.use((req, res) => {
 // Initialize Redis connection
 async function startServer() {
   try {
-    // Connect to Redis
-    await redisService.connect();
-    console.log('Redis connected successfully');
-    
+    // Connect to Redis only if REDIS_URL is set
+    if (process.env.REDIS_URL) {
+      await redisService.connect();
+      if (redisService.isConnected) {
+        console.log('Redis connected successfully');
+      } else {
+        console.log('Redis connection failed, using in-memory fallback');
+      }
+    } else {
+      console.log('No REDIS_URL set. Skipping Redis connection. Using in-memory fallback.');
+    }
+
     const server = app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
       console.log(`Health check: http://localhost:${PORT}/health`);
@@ -88,7 +96,7 @@ async function startServer() {
     setInterval(() => {
       redisService.cleanupExpiredTokens();
     }, 10 * 60 * 1000);
-    
+
     // Graceful shutdown
     process.on('SIGTERM', async () => {
       console.log('SIGTERM received, shutting down gracefully...');
