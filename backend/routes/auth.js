@@ -322,16 +322,27 @@ router.post('/forgot-password', async (req, res) => {
     }
 
     let lookupContact = contact;
+    let altContact = null;
     if (method === 'phone') {
       lookupContact = formatPhone(contact);
+      altContact = contact.replace(/[^\d]/g, '');
     }
 
-    // Find user by email or phone
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('id, email, phone, name')
-      .eq(method, lookupContact)
-      .single();
+    // Find user by email or phone (try both formats for phone)
+    let user, error;
+    if (method === 'phone') {
+      ({ data: user, error } = await supabase
+        .from('users')
+        .select('id, email, phone, name')
+        .or(`phone.eq.${lookupContact},phone.eq.${altContact}`)
+        .single());
+    } else {
+      ({ data: user, error } = await supabase
+        .from('users')
+        .select('id, email, phone, name')
+        .eq('email', lookupContact)
+        .single());
+    }
 
     if (error || !user) {
       return res.status(404).json({ error: `User with this ${method} not found` });
