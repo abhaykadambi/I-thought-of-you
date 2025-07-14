@@ -30,6 +30,8 @@ const verifyServiceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
 
 // In-memory storage for reset tokens (fallback if Redis is not available)
 const resetTokens = new Map();
+// In-memory fallback for phone reset allowed flags
+const phoneResetAllowed = new Map();
 
 // Helper function to generate reset token
 const generateResetToken = () => {
@@ -401,12 +403,13 @@ router.post('/verify-reset-code', async (req, res) => {
     if (method === 'phone') {
       // Use Twilio Verify to check the code
       try {
-        const isValid = await verifyOTP(formatPhone(contact), code);
+        const formattedPhone = formatPhone(contact);
+        const isValid = await verifyOTP(formattedPhone, code);
         if (!isValid) {
           return res.status(400).json({ error: 'Invalid or expired code' });
         }
         // Find user by phone
-        let lookupContact = formatPhone(contact);
+        let lookupContact = formattedPhone;
         let altContact = contact.replace(/[^\d]/g, '');
         let { data: user, error } = await supabase
           .from('users')
@@ -416,6 +419,11 @@ router.post('/verify-reset-code', async (req, res) => {
         if (error || !user) {
           return res.status(404).json({ error: 'User with this phone not found' });
         }
+        // Set reset allowed flag (in-memory and Redis if available)
+        phoneResetAllowed.set(formattedPhone, Date.now() + 10 * 60 * 1000); // 10 min expiry
+        try {
+          await redisService.storeResetToken(`reset-allowed:${formattedPhone}`, { expiresAt: Date.now() + 10 * 60 * 1000 });
+        } catch {}
         return res.json({ message: 'Code verified', userId: user.id });
       } catch (err) {
         return res.status(400).json({ error: 'Invalid or expired code' });
@@ -456,18 +464,27 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters long' });
     }
     if (method === 'phone') {
-      // Use Twilio Verify to check the code
-      let isValid = false;
-      try {
-        isValid = await verifyOTP(formatPhone(contact), code);
-      } catch (err) {
-        return res.status(400).json({ error: 'Invalid or expired code' });
+      // Check reset allowed flag (in-memory and Redis)
+      const formattedPhone = formatPhone(contact);
+      let allowed = false;
+      // Check in-memory
+      const expiry = phoneResetAllowed.get(formattedPhone);
+      if (expiry && Date.now() < expiry) {
+        allowed = true;
+      } else {
+        // Check Redis
+        try {
+          const redisFlag = await redisService.getResetToken(`reset-allowed:${formattedPhone}`);
+          if (redisFlag && Date.now() < redisFlag.expiresAt) {
+            allowed = true;
+          }
+        } catch {}
       }
-      if (!isValid) {
+      if (!allowed) {
         return res.status(400).json({ error: 'Invalid or expired code' });
       }
       // Find user by phone
-      let lookupContact = formatPhone(contact);
+      let lookupContact = formattedPhone;
       let altContact = contact.replace(/[^\d]/g, '');
       let { data: user, error } = await supabase
         .from('users')
@@ -488,6 +505,11 @@ router.post('/reset-password', async (req, res) => {
         console.error('Password update error:', updateError);
         return res.status(500).json({ error: 'Failed to update password' });
       }
+      // Delete reset allowed flag
+      phoneResetAllowed.delete(formattedPhone);
+      try {
+        await redisService.deleteResetToken(`reset-allowed:${formattedPhone}`);
+      } catch {}
       return res.json({ message: 'Password updated successfully!' });
     }
     // Get stored code data
