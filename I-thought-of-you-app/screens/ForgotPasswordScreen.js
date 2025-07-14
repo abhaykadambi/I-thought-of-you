@@ -25,16 +25,12 @@ export default function ForgotPasswordScreen({ navigation }) {
       const result = await authAPI.forgotPassword(method, contact.trim());
       setMessage(result.message);
       
-      if (result.method === 'phone') {
-        // Navigate to OTP screen
-        navigation.navigate('EnterOTPAndReset', { 
-          userId: result.userId,
-          phone: contact.trim()
+      if (result.method === 'phone' || result.method === 'email') {
+        // Navigate to OTP/code entry screen for both methods
+        navigation.navigate('EnterOTPAndReset', {
+          method,
+          contact: contact.trim(),
         });
-      } else {
-        // Show success message for email
-        Alert.alert('Success', 'Password reset email sent! Check your inbox and click the link to reset your password.');
-        navigation.navigate('Login');
       }
     } catch (error) {
       setMessage(error.response?.data?.error || 'Failed to send reset request');

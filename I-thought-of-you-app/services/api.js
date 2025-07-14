@@ -97,15 +97,21 @@ export const authAPI = {
     return response.data;
   },
 
-  // Verify OTP and reset password
-  verifyOTP: async (userId, otp, newPassword, phone) => {
-    const response = await api.post('/auth/verify-otp', { userId, otp, newPassword, phone });
+  // Verify reset code (for both email and phone)
+  verifyResetCode: async (method, contact, code) => {
+    const response = await api.post('/auth/verify-reset-code', { method, contact, code });
     return response.data;
   },
 
-  // Reset password using token
-  resetPassword: async (token, newPassword) => {
-    const response = await api.post('/auth/reset-password', { token, newPassword });
+  // Reset password using code (for both email and phone)
+  resetPassword: async (method, contact, code, newPassword) => {
+    const response = await api.post('/auth/reset-password', { method, contact, code, newPassword });
+    return response.data;
+  },
+
+  // Verify OTP and reset password
+  verifyOTP: async (userId, otp, newPassword, phone) => {
+    const response = await api.post('/auth/verify-otp', { userId, otp, newPassword, phone });
     return response.data;
   },
 

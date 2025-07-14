@@ -36,6 +36,11 @@ const generateResetToken = () => {
   return crypto.randomBytes(32).toString('hex');
 };
 
+// Helper function to generate a 6-digit code
+const generateResetCode = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
 // Helper function to send email using SendGrid
 const sendEmail = async (to, subject, body) => {
   try {
@@ -287,7 +292,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
   }
 });
 
-// POST /auth/forgot-password - Initiate password reset
+// POST /auth/forgot-password - Initiate password reset (unified for email and phone)
 router.post('/forgot-password', async (req, res) => {
   try {
     const { method, contact } = req.body;
@@ -311,190 +316,121 @@ router.post('/forgot-password', async (req, res) => {
       return res.status(404).json({ error: `User with this ${method} not found` });
     }
 
+    // Generate a 6-digit code
+    const resetCode = generateResetCode();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const resetData = {
+      userId: user.id,
+      email: user.email,
+      phone: user.phone,
+      code: resetCode,
+      expiresAt
+    };
+
+    // Store code in Redis/fallback
+    try {
+      await redisService.storeResetToken(resetCode, resetData);
+    } catch (redisError) {
+      console.error('Redis error, using in-memory fallback:', redisError);
+      resetTokens.set(resetCode, resetData);
+    }
+
     if (method === 'email') {
-      // Generate reset token
-      const resetToken = generateResetToken();
-      const expiresAt = new Date(Date.now() + 3600000); // 1 hour
-
-      // Store reset token in Redis
-      const resetData = {
-        userId: user.id,
-        email: user.email,
-        expiresAt
-      };
-
-      try {
-        await redisService.storeResetToken(resetToken, resetData);
-      } catch (redisError) {
-        console.error('Redis error, using in-memory fallback:', redisError);
-        // Fall back to in-memory storage
-        resetTokens.set(resetToken, resetData);
-      }
-
-      // Send email with reset link
-      const resetLink = `ithoughtofyou://reset?token=${resetToken}`;
+      // Send code via email
       const emailBody = `
         Hello ${user.name},
-        
-        You requested a password reset for your I Thought of You account.
-        
-        Click the link below to reset your password:
-        ${resetLink}
-        
-        This link will expire in 1 hour.
-        
-        If you didn't request this reset, please ignore this email.
-        
-        Best regards,
-        I Thought of You Team
+        \nYou requested a password reset for your I Thought of You account.\n\nYour password reset code is: ${resetCode}\n\nThis code will expire in 10 minutes.\n\nIf you didn't request this reset, please ignore this email.\n\nBest regards,\nI Thought of You Team
       `;
-
-      await sendEmail(user.email, 'Password Reset Request', emailBody);
-
-      res.json({ 
-        message: 'Password reset email sent! Check your inbox.',
-        method: 'email'
-      });
-
+      await sendEmail(user.email, 'Password Reset Code', emailBody);
+      res.json({ message: 'Password reset code sent to your email!', method: 'email' });
     } else if (method === 'phone') {
-      // Start Twilio Verify instead of generating custom OTP
+      // Send code via Twilio Verify (existing logic)
       try {
-        await sendSMS(user.phone, ''); // Message is ignored for Twilio Verify
+        await sendSMS(user.phone, '');
       } catch (smsError) {
         console.error('Twilio Verify error:', smsError);
         return res.status(500).json({ error: 'Failed to send verification code' });
       }
-
-      res.json({ 
-        message: 'Verification code sent to your phone!',
-        method: 'phone',
-        userId: user.id,
-        phone: user.phone
-      });
+      res.json({ message: 'Verification code sent to your phone!', method: 'phone', userId: user.id, phone: user.phone });
     }
-
   } catch (error) {
     console.error('Forgot password error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// POST /auth/verify-otp - Verify OTP and allow password reset
-router.post('/verify-otp', async (req, res) => {
+// POST /auth/verify-reset-code - Verify code for email or phone
+router.post('/verify-reset-code', async (req, res) => {
   try {
-    const { userId, otp, newPassword, phone } = req.body;
-
-    if (!userId || !otp || !newPassword || !phone) {
-      return res.status(400).json({ error: 'User ID, OTP, new password, and phone are required' });
+    const { method, contact, code } = req.body;
+    if (!method || !contact || !code) {
+      return res.status(400).json({ error: 'Method, contact, and code are required' });
     }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
-    }
-
-    // Verify OTP using Twilio Verify
-    let isOTPValid = false;
+    // Get stored code data
+    let resetData = null;
     try {
-      isOTPValid = await verifyOTP(phone, otp);
-    } catch (verifyError) {
-      console.error('Twilio Verify error:', verifyError);
-      return res.status(400).json({ error: 'Failed to verify OTP' });
+      resetData = await redisService.getResetToken(code);
+    } catch (redisError) {
+      resetData = resetTokens.get(code);
     }
-
-    if (!isOTPValid) {
-      return res.status(400).json({ error: 'Invalid OTP' });
+    if (!resetData) {
+      return res.status(400).json({ error: 'Invalid or expired code' });
     }
-
-    // Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    // Update user password
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({ 
-        password: hashedPassword,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', userId);
-
-    if (updateError) {
-      console.error('Password update error:', updateError);
-      return res.status(500).json({ error: 'Failed to update password' });
+    if (resetData[method] !== contact) {
+      return res.status(400).json({ error: 'Code does not match this user' });
     }
-
-    res.json({ message: 'Password updated successfully!' });
-
+    if (new Date() > new Date(resetData.expiresAt)) {
+      try { await redisService.deleteResetToken(code); } catch { resetTokens.delete(code); }
+      return res.status(400).json({ error: 'Code has expired' });
+    }
+    res.json({ message: 'Code verified', userId: resetData.userId });
   } catch (error) {
-    console.error('Verify OTP error:', error);
+    console.error('Verify reset code error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// POST /auth/reset-password - Reset password using token (for email flow)
+// POST /auth/reset-password - Reset password using code (for both email and phone)
 router.post('/reset-password', async (req, res) => {
   try {
-    const { token, newPassword } = req.body;
-
-    if (!token || !newPassword) {
-      return res.status(400).json({ error: 'Token and new password are required' });
+    const { method, contact, code, newPassword } = req.body;
+    if (!method || !contact || !code || !newPassword) {
+      return res.status(400).json({ error: 'All fields are required' });
     }
-
     if (newPassword.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters long' });
     }
-
-    // Get stored reset token data from Redis
+    // Get stored code data
     let resetData = null;
     try {
-      resetData = await redisService.getResetToken(token);
+      resetData = await redisService.getResetToken(code);
     } catch (redisError) {
-      console.error('Redis error, using in-memory fallback:', redisError);
-      // Fall back to in-memory storage
-      resetData = resetTokens.get(token);
+      resetData = resetTokens.get(code);
     }
-
     if (!resetData) {
-      return res.status(400).json({ error: 'Invalid or expired reset token' });
+      return res.status(400).json({ error: 'Invalid or expired code' });
     }
-
-    // Check if token is expired
-    if (new Date() > resetData.expiresAt) {
-      try {
-        await redisService.deleteResetToken(token);
-      } catch (redisError) {
-        console.error('Redis error:', redisError);
-        resetTokens.delete(token);
-      }
-      return res.status(400).json({ error: 'Reset token has expired' });
+    if (resetData[method] !== contact) {
+      return res.status(400).json({ error: 'Code does not match this user' });
     }
-
+    if (new Date() > new Date(resetData.expiresAt)) {
+      try { await redisService.deleteResetToken(code); } catch { resetTokens.delete(code); }
+      return res.status(400).json({ error: 'Code has expired' });
+    }
     // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-
     // Update user password
     const { error: updateError } = await supabase
       .from('users')
-      .update({ 
-        password: hashedPassword,
-        updated_at: new Date().toISOString()
-      })
+      .update({ password: hashedPassword, updated_at: new Date().toISOString() })
       .eq('id', resetData.userId);
-
     if (updateError) {
       console.error('Password update error:', updateError);
       return res.status(500).json({ error: 'Failed to update password' });
     }
-
-    // Clear reset token
-    try {
-      await redisService.deleteResetToken(token);
-    } catch (redisError) {
-      console.error('Redis error:', redisError);
-      resetTokens.delete(token);
-    }
-
+    // Clear code
+    try { await redisService.deleteResetToken(code); } catch { resetTokens.delete(code); }
     res.json({ message: 'Password updated successfully!' });
-
   } catch (error) {
     console.error('Reset password error:', error);
     res.status(500).json({ error: 'Internal server error' });

@@ -7,58 +7,67 @@ const cardBackground = '#fff9ed';
 const headerFontFamily = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
 export default function EnterOTPAndResetScreen({ route, navigation }) {
-  const { userId, phone } = route.params;
-  const [otp, setOtp] = useState('');
+  const { method, contact } = route.params;
+  const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [codeVerified, setCodeVerified] = useState(false);
 
-  const handleVerifyAndReset = async () => {
-    if (!otp.trim()) {
-      Alert.alert('Error', 'Please enter the OTP code');
+  const handleVerifyCode = async () => {
+    if (!code.trim()) {
+      Alert.alert('Error', 'Please enter the 6-digit code');
       return;
     }
-
-    if (!newPassword.trim()) {
-      Alert.alert('Error', 'Please enter a new password');
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
-
     setLoading(true);
     setMessage('');
-
     try {
-      await authAPI.verifyOTP(userId, otp.trim(), newPassword.trim(), phone);
-      Alert.alert('Success', 'Password updated successfully!', [
-        { text: 'OK', onPress: () => navigation.navigate('Login') }
-      ]);
+      await authAPI.verifyResetCode(method, contact, code.trim());
+      setCodeVerified(true);
+      setMessage('Code verified! Please enter your new password.');
     } catch (error) {
-      setMessage(error.response?.data?.error || 'Failed to verify OTP and update password');
+      setMessage(error.response?.data?.error || 'Invalid or expired code');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResendOTP = async () => {
+  const handleResetPassword = async () => {
+    if (!newPassword.trim()) {
+      Alert.alert('Error', 'Please enter a new password');
+      return;
+    }
+    if (newPassword.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters long');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
     setLoading(true);
     setMessage('');
-
     try {
-      await authAPI.forgotPassword('phone', phone);
-      setMessage('OTP resent successfully!');
+      await authAPI.resetPassword(method, contact, code.trim(), newPassword.trim());
+      Alert.alert('Success', 'Password updated successfully!', [
+        { text: 'OK', onPress: () => navigation.navigate('Login') }
+      ]);
     } catch (error) {
-      setMessage(error.response?.data?.error || 'Failed to resend OTP');
+      setMessage(error.response?.data?.error || 'Failed to update password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    setLoading(true);
+    setMessage('');
+    try {
+      await authAPI.forgotPassword(method, contact);
+      setMessage('Code resent successfully!');
+    } catch (error) {
+      setMessage(error.response?.data?.error || 'Failed to resend code');
     } finally {
       setLoading(false);
     }
@@ -73,58 +82,73 @@ export default function EnterOTPAndResetScreen({ route, navigation }) {
         <Text style={styles.backIcon}>←</Text>
       </TouchableOpacity>
 
-      <Text style={styles.title}>Enter OTP</Text>
-      <Text style={styles.subtitle}>We sent a code to {phone}</Text>
+      <Text style={styles.title}>Enter Code</Text>
+      <Text style={styles.subtitle}>
+        We sent a code to {method === 'email' ? contact : `+${contact}`}
+      </Text>
 
       <View style={styles.card}>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter 6-digit code"
-          value={otp}
-          onChangeText={setOtp}
-          keyboardType="number-pad"
-          maxLength={6}
-          placeholderTextColor="#b0a99f"
-        />
-
-        <TextInput
-          style={styles.input}
-          placeholder="New password"
-          value={newPassword}
-          onChangeText={setNewPassword}
-          secureTextEntry
-          placeholderTextColor="#b0a99f"
-        />
-
-        <TextInput
-          style={styles.input}
-          placeholder="Confirm new password"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry
-          placeholderTextColor="#b0a99f"
-        />
-
-        <TouchableOpacity 
-          style={[styles.resetButton, loading && styles.resetButtonDisabled]} 
-          onPress={handleVerifyAndReset}
-          disabled={loading}
-        >
-          <Text style={styles.resetButtonText}>
-            {loading ? 'Updating...' : 'Update Password'}
-          </Text>
-        </TouchableOpacity>
+        {!codeVerified ? (
+          <>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter 6-digit code"
+              value={code}
+              onChangeText={setCode}
+              keyboardType="number-pad"
+              maxLength={6}
+              placeholderTextColor="#b0a99f"
+            />
+            <TouchableOpacity
+              style={[styles.resetButton, loading && styles.resetButtonDisabled]}
+              onPress={handleVerifyCode}
+              disabled={loading}
+            >
+              <Text style={styles.resetButtonText}>
+                {loading ? 'Verifying...' : 'Verify Code'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <TextInput
+              style={styles.input}
+              placeholder="New password"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry
+              placeholderTextColor="#b0a99f"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Confirm new password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry
+              placeholderTextColor="#b0a99f"
+            />
+            <TouchableOpacity
+              style={[styles.resetButton, loading && styles.resetButtonDisabled]}
+              onPress={handleResetPassword}
+              disabled={loading}
+            >
+              <Text style={styles.resetButtonText}>
+                {loading ? 'Updating...' : 'Update Password'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
 
         {message ? (
           <Text style={styles.messageText}>{message}</Text>
         ) : null}
 
-        <TouchableOpacity 
-          style={styles.resendButton} 
-          onPress={handleResendOTP}
+        <TouchableOpacity
+          style={styles.resendButton}
+          onPress={handleResendCode}
           disabled={loading}
         >
-          <Text style={styles.resendButtonText}>Resend OTP</Text>
+          <Text style={styles.resendButtonText}>Resend Code</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
