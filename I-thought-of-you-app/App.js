@@ -19,9 +19,13 @@ import ThoughtDetailOverlay from './screens/ThoughtDetailOverlay';
 import FriendProfileScreen from './screens/FriendProfileScreen';
 import AddFriendOverlay from './screens/AddFriendOverlay';
 import SignupScreen from './screens/SignupScreen';
+import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
+import EnterOTPAndResetScreen from './screens/EnterOTPAndResetScreen';
+import ResetPasswordScreen from './screens/ResetPasswordScreen';
 import { authAPI } from './services/api';
 import notificationService from './services/notificationService';
 import * as Notifications from 'expo-notifications';
+import * as Linking from 'expo-linking';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -135,6 +139,21 @@ export default function App() {
     initializeApp();
   }, []);
 
+  // Handle deep linking for password reset
+  const linking = {
+    prefixes: ['ithoughtofyou://'],
+    config: {
+      screens: {
+        ResetPassword: {
+          path: 'reset',
+          parse: {
+            token: (token) => token,
+          },
+        },
+      },
+    },
+  };
+
   if (initialRoute === null) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: globalBackground }}>
@@ -144,7 +163,7 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer linking={linking}>
       <Stack.Navigator 
         initialRouteName={initialRoute}
         screenOptions={{
@@ -155,6 +174,9 @@ export default function App() {
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
         <Stack.Screen name="Signup" component={SignupScreen} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        <Stack.Screen name="EnterOTPAndReset" component={EnterOTPAndResetScreen} />
+        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
         <Stack.Screen name="MainApp" component={MainApp} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="Account" component={AccountScreen} />

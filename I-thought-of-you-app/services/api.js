@@ -90,6 +90,30 @@ export const authAPI = {
     const user = await AsyncStorage.getItem('user');
     return user ? JSON.parse(user) : null;
   },
+
+  // Forgot password
+  forgotPassword: async (method, contact) => {
+    const response = await api.post('/auth/forgot-password', { method, contact });
+    return response.data;
+  },
+
+  // Verify OTP and reset password
+  verifyOTP: async (userId, otp, newPassword, phone) => {
+    const response = await api.post('/auth/verify-otp', { userId, otp, newPassword, phone });
+    return response.data;
+  },
+
+  // Reset password using token
+  resetPassword: async (token, newPassword) => {
+    const response = await api.post('/auth/reset-password', { token, newPassword });
+    return response.data;
+  },
+
+  // Verify reset token
+  verifyResetToken: async (token) => {
+    const response = await api.get(`/auth/verify-reset-token/${token}`);
+    return response.data;
+  },
 };
 
 // Thoughts API

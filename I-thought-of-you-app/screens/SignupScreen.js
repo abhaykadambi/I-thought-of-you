@@ -41,13 +41,7 @@ export default function SignupScreen({ navigation }) {
       <Text style={styles.title}>Create Account</Text>
       <Text style={styles.subtitle}>Sign up to get started</Text>
       <View style={styles.card}>
-        {/* Remove Social Signup Buttons */}
-        {/* Divider */}
-        <View style={styles.dividerContainer}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
-          <View style={styles.dividerLine} />
-        </View>
+        {/* Remove Social Signup Buttons and Divider */}
         {/* Signup Form */}
         <TextInput
           style={styles.input}

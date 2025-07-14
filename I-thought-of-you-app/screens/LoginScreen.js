@@ -31,13 +31,7 @@ export default function LoginScreen({ navigation }) {
       <Text style={styles.title}>Welcome Back</Text>
       <Text style={styles.subtitle}>Sign in to continue</Text>
       <View style={styles.card}>
-        {/* Remove Social Login Buttons */}
-        {/* Divider */}
-        <View style={styles.dividerContainer}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
-          <View style={styles.dividerLine} />
-        </View>
+        {/* Remove Social Login Buttons and Divider */}
         {/* Email/Password Form */}
         <TextInput
           style={styles.input}
@@ -58,6 +52,9 @@ export default function LoginScreen({ navigation }) {
         />
         <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
           <Text style={styles.loginButtonText}>Login</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.forgotPasswordButton} onPress={() => navigation.navigate('ForgotPassword')}>
+          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.signupButton} onPress={() => navigation.navigate('Signup')}>
           <Text style={styles.signupButtonText}>Create Account</Text>
@@ -220,6 +217,15 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#b0a99f',
     fontSize: 16,
+    fontFamily: headerFontFamily,
+  },
+  forgotPasswordButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  forgotPasswordText: {
+    color: '#4a7cff',
+    fontSize: 14,
     fontFamily: headerFontFamily,
   },
 }); 

@@ -7,6 +7,7 @@ const thoughtsRoutes = require('./routes/thoughts');
 const friendsRoutes = require('./routes/friends');
 const settingsRoutes = require('./routes/settings');
 const notificationsRoutes = require('./routes/notifications');
+const redisService = require('./services/redisService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,7 +19,11 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Server is running' });
+  res.json({ 
+    status: 'OK', 
+    message: 'Server is running',
+    redis: redisService.isConnected ? 'connected' : 'disconnected'
+  });
 });
 
 // Test database connection
@@ -67,7 +72,47 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
-}); 
+// Initialize Redis connection
+async function startServer() {
+  try {
+    // Connect to Redis
+    await redisService.connect();
+    console.log('Redis connected successfully');
+    
+    const server = app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+      console.log(`Health check: http://localhost:${PORT}/health`);
+    });
+
+    // Set up periodic cleanup of expired fallback tokens (every 10 minutes)
+    setInterval(() => {
+      redisService.cleanupExpiredTokens();
+    }, 10 * 60 * 1000);
+    
+    // Graceful shutdown
+    process.on('SIGTERM', async () => {
+      console.log('SIGTERM received, shutting down gracefully...');
+      await redisService.disconnect();
+      server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+      });
+    });
+
+    process.on('SIGINT', async () => {
+      console.log('SIGINT received, shutting down gracefully...');
+      await redisService.disconnect();
+      server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+      });
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+startServer();
+
+ 

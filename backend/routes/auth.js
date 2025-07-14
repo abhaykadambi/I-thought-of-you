@@ -3,8 +3,99 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const supabase = require('../config/supabase');
 const { authenticateToken } = require('../middleware/auth');
+const crypto = require('crypto');
+const sgMail = require('@sendgrid/mail');
+const twilio = require('twilio');
+const redisService = require('../services/redisService');
 
 const router = express.Router();
+
+// Initialize SendGrid
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+// Initialize Twilio Verify
+const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+const verifyServiceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
+
+// Connect to Redis on startup (only needed for email reset tokens)
+(async () => {
+  try {
+    await redisService.connect();
+  } catch (error) {
+    console.error('Failed to connect to Redis:', error);
+    // Fall back to in-memory storage if Redis is not available
+    console.log('Falling back to in-memory storage for reset tokens');
+  }
+})();
+
+// In-memory storage for reset tokens (fallback if Redis is not available)
+const resetTokens = new Map();
+
+// Helper function to generate reset token
+const generateResetToken = () => {
+  return crypto.randomBytes(32).toString('hex');
+};
+
+// Helper function to send email using SendGrid
+const sendEmail = async (to, subject, body) => {
+  try {
+    const msg = {
+      to: to,
+      from: process.env.SENDGRID_FROM_EMAIL,
+      subject: subject,
+      text: body,
+      html: body.replace(/\n/g, '<br>') // Convert newlines to HTML breaks
+    };
+    
+    await sgMail.send(msg);
+    console.log(`Email sent successfully to ${to}`);
+    return true;
+  } catch (error) {
+    console.error('SendGrid error:', error);
+    if (error.response) {
+      console.error('SendGrid response body:', error.response.body);
+    }
+    throw error;
+  }
+};
+
+// Helper function to send SMS using Twilio Verify
+const sendSMS = async (to, message) => {
+  try {
+    // For Twilio Verify, we don't send custom messages
+    // Instead, we start a verification
+    const verification = await twilioClient.verify.v2
+      .services(verifyServiceSid)
+      .verifications.create({
+        to: to,
+        channel: 'sms'
+      });
+    
+    console.log(`Verification started for ${to}, SID: ${verification.sid}`);
+    return true;
+  } catch (error) {
+    console.error('Twilio Verify error:', error);
+    throw error;
+  }
+};
+
+// Helper function to verify OTP using Twilio Verify
+const verifyOTP = async (to, code) => {
+  try {
+    const verificationCheck = await twilioClient.verify.v2
+      .services(verifyServiceSid)
+      .verificationChecks.create({
+        to: to,
+        code: code
+      });
+    
+    console.log(`Verification check for ${to}: ${verificationCheck.status}`);
+    return verificationCheck.status === 'approved';
+  } catch (error) {
+    console.error('Twilio Verify check error:', error);
+    throw error;
+  }
+};
 
 // Register new user
 router.post('/register', async (req, res) => {
@@ -193,6 +284,260 @@ router.put('/profile', authenticateToken, async (req, res) => {
     console.error('Profile update error:', error);
     console.error('Error stack:', error.stack);
     res.status(500).json({ error: 'Internal server error: ' + error.message });
+  }
+});
+
+// POST /auth/forgot-password - Initiate password reset
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { method, contact } = req.body;
+
+    if (!method || !contact) {
+      return res.status(400).json({ error: 'Method and contact are required' });
+    }
+
+    if (!['email', 'phone'].includes(method)) {
+      return res.status(400).json({ error: 'Method must be email or phone' });
+    }
+
+    // Find user by email or phone
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, email, phone, name')
+      .eq(method, contact)
+      .single();
+
+    if (error || !user) {
+      return res.status(404).json({ error: `User with this ${method} not found` });
+    }
+
+    if (method === 'email') {
+      // Generate reset token
+      const resetToken = generateResetToken();
+      const expiresAt = new Date(Date.now() + 3600000); // 1 hour
+
+      // Store reset token in Redis
+      const resetData = {
+        userId: user.id,
+        email: user.email,
+        expiresAt
+      };
+
+      try {
+        await redisService.storeResetToken(resetToken, resetData);
+      } catch (redisError) {
+        console.error('Redis error, using in-memory fallback:', redisError);
+        // Fall back to in-memory storage
+        resetTokens.set(resetToken, resetData);
+      }
+
+      // Send email with reset link
+      const resetLink = `ithoughtofyou://reset?token=${resetToken}`;
+      const emailBody = `
+        Hello ${user.name},
+        
+        You requested a password reset for your I Thought of You account.
+        
+        Click the link below to reset your password:
+        ${resetLink}
+        
+        This link will expire in 1 hour.
+        
+        If you didn't request this reset, please ignore this email.
+        
+        Best regards,
+        I Thought of You Team
+      `;
+
+      await sendEmail(user.email, 'Password Reset Request', emailBody);
+
+      res.json({ 
+        message: 'Password reset email sent! Check your inbox.',
+        method: 'email'
+      });
+
+    } else if (method === 'phone') {
+      // Start Twilio Verify instead of generating custom OTP
+      try {
+        await sendSMS(user.phone, ''); // Message is ignored for Twilio Verify
+      } catch (smsError) {
+        console.error('Twilio Verify error:', smsError);
+        return res.status(500).json({ error: 'Failed to send verification code' });
+      }
+
+      res.json({ 
+        message: 'Verification code sent to your phone!',
+        method: 'phone',
+        userId: user.id,
+        phone: user.phone
+      });
+    }
+
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /auth/verify-otp - Verify OTP and allow password reset
+router.post('/verify-otp', async (req, res) => {
+  try {
+    const { userId, otp, newPassword, phone } = req.body;
+
+    if (!userId || !otp || !newPassword || !phone) {
+      return res.status(400).json({ error: 'User ID, OTP, new password, and phone are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    }
+
+    // Verify OTP using Twilio Verify
+    let isOTPValid = false;
+    try {
+      isOTPValid = await verifyOTP(phone, otp);
+    } catch (verifyError) {
+      console.error('Twilio Verify error:', verifyError);
+      return res.status(400).json({ error: 'Failed to verify OTP' });
+    }
+
+    if (!isOTPValid) {
+      return res.status(400).json({ error: 'Invalid OTP' });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update user password
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ 
+        password: hashedPassword,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('Password update error:', updateError);
+      return res.status(500).json({ error: 'Failed to update password' });
+    }
+
+    res.json({ message: 'Password updated successfully!' });
+
+  } catch (error) {
+    console.error('Verify OTP error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /auth/reset-password - Reset password using token (for email flow)
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Token and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    }
+
+    // Get stored reset token data from Redis
+    let resetData = null;
+    try {
+      resetData = await redisService.getResetToken(token);
+    } catch (redisError) {
+      console.error('Redis error, using in-memory fallback:', redisError);
+      // Fall back to in-memory storage
+      resetData = resetTokens.get(token);
+    }
+
+    if (!resetData) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    // Check if token is expired
+    if (new Date() > resetData.expiresAt) {
+      try {
+        await redisService.deleteResetToken(token);
+      } catch (redisError) {
+        console.error('Redis error:', redisError);
+        resetTokens.delete(token);
+      }
+      return res.status(400).json({ error: 'Reset token has expired' });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update user password
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ 
+        password: hashedPassword,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', resetData.userId);
+
+    if (updateError) {
+      console.error('Password update error:', updateError);
+      return res.status(500).json({ error: 'Failed to update password' });
+    }
+
+    // Clear reset token
+    try {
+      await redisService.deleteResetToken(token);
+    } catch (redisError) {
+      console.error('Redis error:', redisError);
+      resetTokens.delete(token);
+    }
+
+    res.json({ message: 'Password updated successfully!' });
+
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /auth/verify-reset-token - Verify reset token is valid
+router.get('/verify-reset-token/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    // Get stored reset token data from Redis
+    let resetData = null;
+    try {
+      resetData = await redisService.getResetToken(token);
+    } catch (redisError) {
+      console.error('Redis error, using in-memory fallback:', redisError);
+      // Fall back to in-memory storage
+      resetData = resetTokens.get(token);
+    }
+
+    if (!resetData) {
+      return res.status(400).json({ error: 'Invalid reset token' });
+    }
+
+    if (new Date() > resetData.expiresAt) {
+      try {
+        await redisService.deleteResetToken(token);
+      } catch (redisError) {
+        console.error('Redis error:', redisError);
+        resetTokens.delete(token);
+      }
+      return res.status(400).json({ error: 'Reset token has expired' });
+    }
+
+    res.json({ 
+      valid: true,
+      email: resetData.email
+    });
+
+  } catch (error) {
+    console.error('Verify reset token error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
