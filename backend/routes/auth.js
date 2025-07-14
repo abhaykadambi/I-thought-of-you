@@ -398,6 +398,29 @@ router.post('/verify-reset-code', async (req, res) => {
     if (!method || !contact || !code) {
       return res.status(400).json({ error: 'Method, contact, and code are required' });
     }
+    if (method === 'phone') {
+      // Use Twilio Verify to check the code
+      try {
+        const isValid = await verifyOTP(formatPhone(contact), code);
+        if (!isValid) {
+          return res.status(400).json({ error: 'Invalid or expired code' });
+        }
+        // Find user by phone
+        let lookupContact = formatPhone(contact);
+        let altContact = contact.replace(/[^\d]/g, '');
+        let { data: user, error } = await supabase
+          .from('users')
+          .select('id')
+          .or(`phone.eq.${lookupContact},phone.eq.${altContact}`)
+          .single();
+        if (error || !user) {
+          return res.status(404).json({ error: 'User with this phone not found' });
+        }
+        return res.json({ message: 'Code verified', userId: user.id });
+      } catch (err) {
+        return res.status(400).json({ error: 'Invalid or expired code' });
+      }
+    }
     // Get stored code data
     let resetData = null;
     try {
@@ -431,6 +454,41 @@ router.post('/reset-password', async (req, res) => {
     }
     if (newPassword.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    }
+    if (method === 'phone') {
+      // Use Twilio Verify to check the code
+      let isValid = false;
+      try {
+        isValid = await verifyOTP(formatPhone(contact), code);
+      } catch (err) {
+        return res.status(400).json({ error: 'Invalid or expired code' });
+      }
+      if (!isValid) {
+        return res.status(400).json({ error: 'Invalid or expired code' });
+      }
+      // Find user by phone
+      let lookupContact = formatPhone(contact);
+      let altContact = contact.replace(/[^\d]/g, '');
+      let { data: user, error } = await supabase
+        .from('users')
+        .select('id')
+        .or(`phone.eq.${lookupContact},phone.eq.${altContact}`)
+        .single();
+      if (error || !user) {
+        return res.status(404).json({ error: 'User with this phone not found' });
+      }
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      // Update user password
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ password: hashedPassword, updated_at: new Date().toISOString() })
+        .eq('id', user.id);
+      if (updateError) {
+        console.error('Password update error:', updateError);
+        return res.status(500).json({ error: 'Failed to update password' });
+      }
+      return res.json({ message: 'Password updated successfully!' });
     }
     // Get stored code data
     let resetData = null;
