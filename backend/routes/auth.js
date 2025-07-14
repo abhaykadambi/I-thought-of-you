@@ -102,6 +102,22 @@ const verifyOTP = async (to, code) => {
   }
 };
 
+// Helper to format phone number to E.164 (US only for now)
+function formatPhone(phone) {
+  let digits = phone.replace(/[^\d]/g, '');
+  if (digits.length === 10) {
+    // Assume US number
+    return '+1' + digits;
+  } else if (digits.length === 11 && digits.startsWith('1')) {
+    return '+1' + digits.slice(1);
+  } else if (phone.startsWith('+')) {
+    return phone;
+  } else {
+    // Fallback: just add +
+    return '+' + digits;
+  }
+}
+
 // Register new user
 router.post('/register', async (req, res) => {
   try {
@@ -305,11 +321,16 @@ router.post('/forgot-password', async (req, res) => {
       return res.status(400).json({ error: 'Method must be email or phone' });
     }
 
+    let lookupContact = contact;
+    if (method === 'phone') {
+      lookupContact = formatPhone(contact);
+    }
+
     // Find user by email or phone
     const { data: user, error } = await supabase
       .from('users')
       .select('id, email, phone, name')
-      .eq(method, contact)
+      .eq(method, lookupContact)
       .single();
 
     if (error || !user) {

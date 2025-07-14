@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Platform, Alert, Share, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Platform, Alert, Share, ActivityIndicator, SectionList } from 'react-native';
 import { friendsAPI } from '../services/api';
 import * as Contacts from 'expo-contacts';
 import { useNavigation } from '@react-navigation/native';
@@ -171,6 +171,28 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
     </View>
   );
 
+  // SectionList data
+  const sections = [
+    {
+      title: 'Friends',
+      data: friends,
+      renderItem: renderItem,
+      emptyComponent: renderEmptyState(),
+    },
+    {
+      title: 'Suggested Friends',
+      data: suggestedFriends,
+      renderItem: renderSuggestedItem,
+      emptyComponent: (
+        loadingSuggested ? (
+          <ActivityIndicator size="small" color="#4a7cff" style={{ marginTop: 16 }} />
+        ) : (
+          <Text style={styles.suggestedEmpty}>No suggested friends found from your contacts.</Text>
+        )
+      ),
+    },
+  ];
+
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
@@ -225,34 +247,21 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
           ))}
         </View>
       )}
-      {friends.length === 0 ? (
-        renderEmptyState()
-      ) : (
-        <FlatList
-          data={friends}
-          renderItem={renderItem}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
-      {/* Suggested Friends Section */}
-      <View style={styles.suggestedSection}>
-        <Text style={styles.suggestedHeader}>Suggested Friends</Text>
-        {loadingSuggested ? (
-          <ActivityIndicator size="small" color="#4a7cff" style={{ marginTop: 16 }} />
-        ) : suggestedFriends.length === 0 ? (
-          <Text style={styles.suggestedEmpty}>No suggested friends found from your contacts.</Text>
-        ) : (
-          <FlatList
-            data={suggestedFriends}
-            renderItem={renderSuggestedItem}
-            keyExtractor={item => item.id}
-            contentContainerStyle={styles.suggestedListContent}
-            showsVerticalScrollIndicator={false}
-          />
+      {/* Unified SectionList for Friends and Suggested Friends */}
+      <SectionList
+        sections={sections}
+        keyExtractor={item => item.id}
+        renderSectionHeader={({ section: { title } }) => (
+          <Text style={title === 'Friends' ? styles.sectionHeader : styles.suggestedHeader}>{title}</Text>
         )}
-      </View>
+        renderItem={({ item, section }) => section.renderItem({ item })}
+        ListEmptyComponent={renderEmptyState}
+        renderSectionFooter={({ section }) =>
+          section.data.length === 0 && section.emptyComponent ? section.emptyComponent : null
+        }
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+      />
     </View>
   );
 }
@@ -486,5 +495,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  sectionHeader: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2c2c2c',
+    marginTop: 24,
+    marginBottom: 10,
+    fontFamily: headerFontFamily,
   },
 }); 
