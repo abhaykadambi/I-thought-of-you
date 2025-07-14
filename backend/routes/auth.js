@@ -378,7 +378,7 @@ router.post('/forgot-password', async (req, res) => {
     } else if (method === 'phone') {
       // Send code via Twilio Verify (existing logic)
       try {
-        await sendSMS(user.phone, '');
+        await sendSMS(formatPhone(user.phone), '');
       } catch (smsError) {
         console.error('Twilio Verify error:', smsError);
         return res.status(500).json({ error: 'Failed to send verification code' });
