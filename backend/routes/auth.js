@@ -7,6 +7,8 @@ const crypto = require('crypto');
 const sgMail = require('@sendgrid/mail');
 const twilio = require('twilio');
 const redisService = require('../services/redisService');
+const multer = require('multer');
+const path = require('path');
 
 const router = express.Router();
 
@@ -16,6 +18,25 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 // Initialize Twilio Verify
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const verifyServiceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
+
+// Configure multer for avatar uploads
+const avatarStorage = multer.memoryStorage();
+const avatarUpload = multer({
+  storage: avatarStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'));
+    }
+  }
+});
 
 // Connect to Redis on startup (only needed for email reset tokens)
 (async () => {
@@ -586,6 +607,41 @@ router.get('/verify-reset-token/:token', async (req, res) => {
   } catch (error) {
     console.error('Verify reset token error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /auth/upload-avatar
+router.post('/upload-avatar', authenticateToken, avatarUpload.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No avatar file provided' });
+    }
+    const userId = req.user.userId;
+    const fileExtension = path.extname(req.file.originalname);
+    const fileName = `avatars/${userId}_${Date.now()}${fileExtension}`;
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from('avatars')
+      .upload(fileName, req.file.buffer, {
+        contentType: req.file.mimetype,
+        cacheControl: '3600',
+        upsert: true
+      });
+    if (error) {
+      console.error('Supabase avatar upload error:', error);
+      return res.status(500).json({ error: 'Failed to upload avatar' });
+    }
+    // Get public URL
+    const { data: publicUrlData } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(fileName);
+    res.json({ 
+      avatarUrl: publicUrlData.publicUrl,
+      message: 'Avatar uploaded successfully' 
+    });
+  } catch (error) {
+    console.error('Avatar upload error:', error);
+    res.status(500).json({ error: 'Failed to upload avatar' });
   }
 });
 

@@ -120,6 +120,30 @@ export const authAPI = {
     const response = await api.get(`/auth/verify-reset-token/${token}`);
     return response.data;
   },
+
+  // Upload avatar image
+  uploadAvatar: async (avatarUri) => {
+    const formData = new FormData();
+    formData.append('avatar', {
+      uri: avatarUri,
+      type: 'image/jpeg', // You might want to detect the actual type
+      name: 'avatar.jpg',
+    });
+    const token = await AsyncStorage.getItem('authToken');
+    const response = await fetch('https://i-thought-of-you-production.up.railway.app/api/auth/upload-avatar', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data',
+      },
+      body: formData,
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to upload avatar');
+    }
+    return await response.json();
+  },
 };
 
 // Thoughts API

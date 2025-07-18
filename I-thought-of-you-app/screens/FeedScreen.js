@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, Image, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, Image, RefreshControl, FlatList, ActivityIndicator } from 'react-native';
 import { thoughtsAPI } from '../services/api';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -7,6 +7,16 @@ const globalBackground = '#f8f5ee';
 const cardBackground = '#fff9ed';
 const headerFontFamily = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 const sectionFontFamily = Platform.OS === 'ios' ? 'Georgia' : 'serif';
+
+const SkeletonThought = () => (
+  <View style={[styles.thoughtCard, { opacity: 0.5, backgroundColor: '#ececec', marginBottom: 16 }]}> 
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#ddd', marginRight: 8 }} />
+      <View style={{ flex: 1, height: 16, backgroundColor: '#ddd', borderRadius: 4 }} />
+    </View>
+    <View style={{ width: 80, height: 12, backgroundColor: '#ddd', borderRadius: 4 }} />
+  </View>
+);
 
 export default function FeedScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('received');
@@ -73,97 +83,99 @@ export default function FeedScreen({ navigation }) {
     </View>
   );
 
-  const renderReceivedThoughts = () => (
-    <ScrollView 
-      style={styles.feedContainer} 
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          colors={['#4a7cff']}
-          tintColor="#4a7cff"
-        />
-      }
+  const renderReceivedThought = ({ item }) => (
+    <TouchableOpacity
+      style={styles.thoughtCard}
+      onPress={() => navigation.navigate('ThoughtDetailOverlay', { thought: item })}
     >
-      {receivedThoughts.length === 0 ? (
-        renderEmptyState('received')
-      ) : (
-        receivedThoughts.map((thought, idx) => (
-          <TouchableOpacity
-            key={idx}
-            style={styles.thoughtCard}
-            onPress={() => navigation.navigate('ThoughtDetailOverlay', { thought })}
-          >
-            <View style={styles.thoughtHeader}>
-              {thought.authorAvatar ? (
-                <Image source={{ uri: thought.authorAvatar }} style={styles.authorAvatar} />
-              ) : (
-                <View style={styles.authorAvatarPlaceholder}>
-                  <Text style={styles.authorAvatarText}>
-                    {thought.author.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              )}
-              <Text style={styles.thoughtText} numberOfLines={2} ellipsizeMode="tail">
-                <Text style={styles.thoughtAuthor}>{thought.author}: </Text>
-                {thought.text}
-              </Text>
-            </View>
-            {thought.image && (
-              <Image source={{ uri: thought.image }} style={styles.thoughtImage} />
-            )}
-            <Text style={styles.thoughtTime}>{thought.time}</Text>
-          </TouchableOpacity>
-        ))
+      <View style={styles.thoughtHeader}>
+        {item.authorAvatar ? (
+          <Image source={{ uri: item.authorAvatar }} style={styles.authorAvatar} />
+        ) : (
+          <View style={styles.authorAvatarPlaceholder}>
+            <Text style={styles.authorAvatarText}>
+              {item.author.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        )}
+        <Text style={styles.thoughtText} numberOfLines={2} ellipsizeMode="tail">
+          <Text style={styles.thoughtAuthor}>{item.author}: </Text>
+          {item.text}
+        </Text>
+      </View>
+      {item.image && (
+        <Image source={{ uri: item.image }} style={styles.thoughtImage} />
       )}
-    </ScrollView>
+      <Text style={styles.thoughtTime}>{item.time}</Text>
+    </TouchableOpacity>
+  );
+
+  const renderSentThought = ({ item }) => (
+    <TouchableOpacity
+      style={styles.thoughtCard}
+      onPress={() => navigation.navigate('ThoughtDetailOverlay', { 
+        thought: {
+          author: 'You',
+          text: item.text,
+          time: item.time,
+          recipient: item.recipient,
+          image: item.image
+        }
+      })}
+    >
+      <View style={styles.sentThoughtContainer}>
+        <Text style={styles.thoughtText} numberOfLines={2} ellipsizeMode="tail">
+          <Text style={styles.thoughtAuthor}>To {item.recipient}: </Text>
+          {item.text}
+        </Text>
+      </View>
+      {item.image && (
+        <Image source={{ uri: item.image }} style={styles.thoughtImage} />
+      )}
+      <Text style={styles.thoughtTime}>{item.time}</Text>
+    </TouchableOpacity>
+  );
+
+  const renderReceivedThoughts = () => (
+    loading ? (
+      <>
+        <SkeletonThought />
+        <SkeletonThought />
+        <SkeletonThought />
+      </>
+    ) : (
+      <FlatList
+        data={receivedThoughts}
+        keyExtractor={(item) => item.id || item.time || Math.random().toString()}
+        renderItem={renderReceivedThought}
+        ListEmptyComponent={renderEmptyState('received')}
+        contentContainerStyle={{ paddingBottom: 32 }}
+        showsVerticalScrollIndicator={false}
+        // onEndReached={handleLoadMoreReceived} // For pagination
+        // onEndReachedThreshold={0.5}
+      />
+    )
   );
 
   const renderSentThoughts = () => (
-    <ScrollView 
-      style={styles.feedContainer} 
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          colors={['#4a7cff']}
-          tintColor="#4a7cff"
-        />
-      }
-    >
-      {sentThoughts.length === 0 ? (
-        renderEmptyState('sent')
-      ) : (
-        sentThoughts.map((thought, idx) => (
-          <TouchableOpacity
-            key={`sent-${idx}`}
-            style={styles.thoughtCard}
-            onPress={() => navigation.navigate('ThoughtDetailOverlay', { 
-              thought: {
-                author: 'You',
-                text: thought.text,
-                time: thought.time,
-                recipient: thought.recipient,
-                image: thought.image
-              }
-            })}
-          >
-            <View style={styles.sentThoughtContainer}>
-              <Text style={styles.thoughtText} numberOfLines={2} ellipsizeMode="tail">
-                <Text style={styles.thoughtAuthor}>To {thought.recipient}: </Text>
-                {thought.text}
-              </Text>
-            </View>
-            {thought.image && (
-              <Image source={{ uri: thought.image }} style={styles.thoughtImage} />
-            )}
-            <Text style={styles.thoughtTime}>{thought.time}</Text>
-          </TouchableOpacity>
-        ))
-      )}
-    </ScrollView>
+    loading ? (
+      <>
+        <SkeletonThought />
+        <SkeletonThought />
+        <SkeletonThought />
+      </>
+    ) : (
+      <FlatList
+        data={sentThoughts}
+        keyExtractor={(item) => 'sent-' + (item.id || item.time || Math.random().toString())}
+        renderItem={renderSentThought}
+        ListEmptyComponent={renderEmptyState('sent')}
+        contentContainerStyle={{ paddingBottom: 32 }}
+        showsVerticalScrollIndicator={false}
+        // onEndReached={handleLoadMoreSent} // For pagination
+        // onEndReachedThreshold={0.5}
+      />
+    )
   );
 
   return (

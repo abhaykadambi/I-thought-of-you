@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Platform, FlatList, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { thoughtsAPI } from '../services/api';
 import { authAPI } from '../services/api';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { supabase } from '../supabaseClient'; // We'll create this helper for upload
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -10,6 +11,44 @@ const globalBackground = '#f8f5ee';
 const cardBackground = '#fff9ed';
 const headerFontFamily = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 const defaultAvatar = 'https://randomuser.me/api/portraits/lego/1.jpg';
+
+const SkeletonPinnedThought = () => (
+  <View style={[styles.thoughtCard, { opacity: 0.5, backgroundColor: '#ececec' }]}> 
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#ddd', marginRight: 8 }} />
+      <View style={{ flex: 1, height: 16, backgroundColor: '#ddd', borderRadius: 4 }} />
+    </View>
+    <View style={{ width: 80, height: 12, backgroundColor: '#ddd', borderRadius: 4 }} />
+  </View>
+);
+
+// Polyfill for atob (if not available)
+function atobPolyfill(input) {
+  if (typeof atob === 'function') return atob(input);
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  let str = input.replace(/=+$/, '');
+  let output = '';
+  for (let bc = 0, bs = 0, buffer, i = 0; (buffer = str.charAt(i++)); ~buffer && (bs = bc % 4 ? bs * 64 + buffer : buffer, bc++ % 4) ? output += String.fromCharCode(255 & bs >> (-2 * bc & 6)) : 0) {
+    buffer = chars.indexOf(buffer);
+  }
+  return output;
+}
+
+// Helper to upload avatar to Supabase Storage
+const uploadAvatarToSupabase = async (fileUri, userId) => {
+  const fileExt = fileUri.split('.').pop();
+  const fileName = `avatar_${userId}_${Date.now()}.${fileExt}`;
+  // Use fetch to get the blob
+  const response = await fetch(fileUri);
+  const blob = await response.blob();
+  const { data, error } = await supabase.storage.from('avatars').upload(fileName, blob, {
+    contentType: blob.type || `image/${fileExt}`,
+    upsert: true,
+  });
+  if (error) throw error;
+  const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
+  return publicUrlData.publicUrl;
+};
 
 export default function ProfileScreen({ navigation }) {
   const [editMode, setEditMode] = useState(false);
@@ -20,20 +59,49 @@ export default function ProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const lastPinnedUpdate = useRef(Date.now());
 
+  // Fetch profile and pinned thoughts in parallel
   useEffect(() => {
-    loadProfile();
-    loadPinnedThoughts();
+    setProfileLoading(true);
+    setLoading(true);
+    Promise.all([
+      (async () => {
+        try {
+          const { user: profile } = await authAPI.getProfile();
+          setUser(profile);
+          setEditedName(profile.name || '');
+          setEditedAvatar(profile.avatar || '');
+        } catch (error) {
+          console.error('Error loading profile:', error);
+          Alert.alert('Error', 'Failed to load profile. Please try again.');
+        } finally {
+          setProfileLoading(false);
+        }
+      })(),
+      (async () => {
+        try {
+          const data = await thoughtsAPI.getPinned();
+          setPinnedThoughts(data.pinnedThoughts || []);
+          lastPinnedUpdate.current = Date.now();
+        } catch (error) {
+          console.error('Error loading pinned thoughts:', error);
+          Alert.alert('Error', 'Failed to load pinned thoughts. Please try again.');
+        } finally {
+          setLoading(false);
+        }
+      })()
+    ]);
   }, []);
 
-  // Refresh pinned thoughts when screen comes into focus
+  // Refresh pinned thoughts when screen comes into focus, only if >30s since last update
   useFocusEffect(
     React.useCallback(() => {
-      // Only reload if we don't have any pinned thoughts loaded yet
-      if (pinnedThoughts.length === 0) {
+      const now = Date.now();
+      if (now - lastPinnedUpdate.current > 30000) {
         loadPinnedThoughts();
       }
-    }, [pinnedThoughts.length])
+    }, [])
   );
 
   const loadProfile = async () => {
@@ -56,6 +124,7 @@ export default function ProfileScreen({ navigation }) {
       setLoading(true);
       const data = await thoughtsAPI.getPinned();
       setPinnedThoughts(data.pinnedThoughts || []);
+      lastPinnedUpdate.current = Date.now();
     } catch (error) {
       console.error('Error loading pinned thoughts:', error);
       Alert.alert('Error', 'Failed to load pinned thoughts. Please try again.');
@@ -84,27 +153,15 @@ export default function ProfileScreen({ navigation }) {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8,
+      quality: 0.3, // Aggressive compression for avatars
     });
     if (!result.canceled && result.assets && result.assets[0]) {
       setUploading(true);
+      setEditedAvatar(result.assets[0].uri); // Show preview immediately
       try {
-        const file = result.assets[0];
-        
-        // Convert image to base64
-        const response = await fetch(file.uri);
-        const blob = await response.blob();
-        
-        // Convert blob to base64
-        const reader = new FileReader();
-        const base64Promise = new Promise((resolve, reject) => {
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-        });
-        reader.readAsDataURL(blob);
-        const base64Data = await base64Promise;
-        
-        setEditedAvatar(base64Data);
+        // Upload to backend and get public URL
+        const uploadResult = await authAPI.uploadAvatar(result.assets[0].uri);
+        setEditedAvatar(uploadResult.avatarUrl);
       } catch (error) {
         console.error('Avatar upload error:', error);
         Alert.alert('Error', 'Failed to upload avatar: ' + error.message);
@@ -222,7 +279,12 @@ export default function ProfileScreen({ navigation }) {
       <Text style={styles.sectionTitle}>Pinned Thoughts</Text>
       <View style={styles.card}>
         {loading ? (
-          <ActivityIndicator size="small" color="#4a7cff" />
+          // Show 3 skeletons while loading
+          <>
+            <SkeletonPinnedThought />
+            <SkeletonPinnedThought />
+            <SkeletonPinnedThought />
+          </>
         ) : pinnedThoughts.length === 0 ? (
           <View style={styles.emptyPinnedContainer}>
             <Text style={styles.emptyPinnedText}>No pinned thoughts. Pin something and come back!</Text>
