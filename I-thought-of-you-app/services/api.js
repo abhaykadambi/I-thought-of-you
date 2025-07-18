@@ -190,8 +190,8 @@ export const friendsAPI = {
   },
 
   // Get friend profile with thoughts
-  getProfile: async (friendId) => {
-    const response = await api.get(`/friends/${friendId}`);
+  getProfile: async (friendId, params = {}) => {
+    const response = await api.get(`/friends/${friendId}`, { params });
     return response.data;
   },
 

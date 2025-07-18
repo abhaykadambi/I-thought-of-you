@@ -57,6 +57,8 @@ router.get('/:friendId', authenticateToken, async (req, res) => {
   try {
     const { friendId } = req.params;
     const currentUserId = req.user.userId;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const offset = parseInt(req.query.offset, 10) || 0;
 
     // Get friend's profile
     const { data: friend, error: friendError } = await supabase
@@ -70,7 +72,7 @@ router.get('/:friendId', authenticateToken, async (req, res) => {
     }
 
     // Get thoughts from this friend to current user
-    const { data: thoughts, error: thoughtsError } = await supabase
+    const { data: allThoughts, error: thoughtsError } = await supabase
       .from('thoughts')
       .select(`
         id,
@@ -88,7 +90,7 @@ router.get('/:friendId', authenticateToken, async (req, res) => {
     }
 
     // Get thoughts sent by current user to this friend
-    const { data: sentThoughts, error: sentError } = await supabase
+    const { data: allSentThoughts, error: sentError } = await supabase
       .from('thoughts')
       .select(`
         id,
@@ -104,6 +106,25 @@ router.get('/:friendId', authenticateToken, async (req, res) => {
       console.error('Error fetching sent thoughts:', sentError);
       return res.status(500).json({ error: 'Failed to fetch sent thoughts' });
     }
+
+    // Pagination
+    const paginatedThoughts = allThoughts.slice(offset, offset + limit);
+    const paginatedSentThoughts = allSentThoughts.slice(offset, offset + limit);
+
+    // Format thoughts
+    const formattedThoughts = paginatedThoughts.map(thought => ({
+      id: thought.id,
+      text: thought.text,
+      image: thought.image_url,
+      time: formatTime(thought.created_at)
+    }));
+
+    const formattedSentThoughts = paginatedSentThoughts.map(thought => ({
+      id: thought.id,
+      text: thought.text,
+      image: thought.image_url,
+      time: formatTime(thought.created_at)
+    }));
 
     // Get friend request to calculate days connected
     const { data: friendRequest, error: requestError } = await supabase
@@ -122,21 +143,6 @@ router.get('/:friendId', authenticateToken, async (req, res) => {
       daysConnected = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     }
 
-    // Format thoughts
-    const formattedThoughts = thoughts.map(thought => ({
-      id: thought.id,
-      text: thought.text,
-      image: thought.image_url,
-      time: formatTime(thought.created_at)
-    }));
-
-    const formattedSentThoughts = sentThoughts.map(thought => ({
-      id: thought.id,
-      text: thought.text,
-      image: thought.image_url,
-      time: formatTime(thought.created_at)
-    }));
-
     res.json({
       friend: {
         id: friend.id,
@@ -145,14 +151,15 @@ router.get('/:friendId', authenticateToken, async (req, res) => {
         avatar: friend.avatar
       },
       thoughts: formattedThoughts,
+      thoughtsTotal: allThoughts.length,
       sentThoughts: formattedSentThoughts,
+      sentThoughtsTotal: allSentThoughts.length,
       stats: {
-        thoughtsSent: sentThoughts ? sentThoughts.length : 0,
-        thoughtsReceived: thoughts ? thoughts.length : 0,
+        thoughtsSent: allSentThoughts.length,
+        thoughtsReceived: allThoughts.length,
         daysConnected: daysConnected
       }
     });
-
   } catch (error) {
     console.error('Friend profile error:', error);
     res.status(500).json({ error: 'Internal server error' });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, ScrollView, FlatList, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, ScrollView, FlatList, Alert, ActivityIndicator } from 'react-native';
 import { friendsAPI } from '../services/api';
 
 const globalBackground = '#f8f5ee';
@@ -12,6 +12,12 @@ export default function FriendProfileScreen({ route, navigation }) {
   const [thoughtsToFriend, setThoughtsToFriend] = useState([]);
   const [activeTab, setActiveTab] = useState('from'); // 'from' or 'to'
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [fromOffset, setFromOffset] = useState(0);
+  const [toOffset, setToOffset] = useState(0);
+  const [fromTotal, setFromTotal] = useState(0);
+  const [toTotal, setToTotal] = useState(0);
+  const PAGE_SIZE = 10;
   const [showMenu, setShowMenu] = useState(false);
   const [stats, setStats] = useState({
     thoughtsSent: 0,
@@ -20,15 +26,22 @@ export default function FriendProfileScreen({ route, navigation }) {
   });
 
   useEffect(() => {
-    loadFriendProfile();
-  }, [friend.id]);
+    loadInitialThoughts();
+  }, [friend.id, activeTab]);
 
-  const loadFriendProfile = async () => {
+  const loadInitialThoughts = async () => {
+    setLoading(true);
+    setLoadingMore(false);
+    setFromOffset(0);
+    setToOffset(0);
     try {
-      setLoading(true);
-      const data = await friendsAPI.getProfile(friend.id);
+      const data = await friendsAPI.getProfile(friend.id, { limit: PAGE_SIZE, offset: 0 });
       setThoughtsFromFriend(data.thoughts || []);
-      setThoughtsToFriend(data.sentThoughts || []); // Add this to backend if not present
+      setThoughtsToFriend(data.sentThoughts || []);
+      setFromTotal(data.thoughtsTotal || 0);
+      setToTotal(data.sentThoughtsTotal || 0);
+      setFromOffset(data.thoughts ? data.thoughts.length : 0);
+      setToOffset(data.sentThoughts ? data.sentThoughts.length : 0);
       setStats({
         thoughtsSent: data.stats?.thoughtsSent || 0,
         thoughtsReceived: data.stats?.thoughtsReceived || 0,
@@ -39,6 +52,36 @@ export default function FriendProfileScreen({ route, navigation }) {
       Alert.alert('Error', 'Failed to load friend profile. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMoreFrom = async () => {
+    if (loadingMore || thoughtsFromFriend.length >= fromTotal) return;
+    setLoadingMore(true);
+    try {
+      const data = await friendsAPI.getProfile(friend.id, { limit: PAGE_SIZE, offset: fromOffset });
+      setThoughtsFromFriend(prev => [...prev, ...(data.thoughts || [])]);
+      setFromOffset(prev => prev + (data.thoughts ? data.thoughts.length : 0));
+      setFromTotal(data.thoughtsTotal || fromTotal);
+    } catch (error) {
+      console.error('Error loading more thoughts from friend:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const loadMoreTo = async () => {
+    if (loadingMore || thoughtsToFriend.length >= toTotal) return;
+    setLoadingMore(true);
+    try {
+      const data = await friendsAPI.getProfile(friend.id, { limit: PAGE_SIZE, offset: toOffset });
+      setThoughtsToFriend(prev => [...prev, ...(data.sentThoughts || [])]);
+      setToOffset(prev => prev + (data.sentThoughts ? data.sentThoughts.length : 0));
+      setToTotal(data.sentThoughtsTotal || toTotal);
+    } catch (error) {
+      console.error('Error loading more thoughts to friend:', error);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -81,6 +124,12 @@ export default function FriendProfileScreen({ route, navigation }) {
       ]
     );
   };
+
+  const renderFooter = () => loadingMore ? (
+    <View style={{ padding: 16 }}>
+      <ActivityIndicator size="small" color="#4a7cff" />
+    </View>
+  ) : null;
 
   const renderThoughtItem = ({ item }) => (
     <TouchableOpacity 
@@ -210,6 +259,9 @@ export default function FriendProfileScreen({ route, navigation }) {
                   keyExtractor={item => item.id}
                   scrollEnabled={false}
                   showsVerticalScrollIndicator={false}
+                  onEndReached={loadMoreFrom}
+                  onEndReachedThreshold={0.5}
+                  ListFooterComponent={renderFooter}
                 />
               ) : (
                 <View style={styles.emptyState}>
@@ -225,6 +277,9 @@ export default function FriendProfileScreen({ route, navigation }) {
                   keyExtractor={item => item.id}
                   scrollEnabled={false}
                   showsVerticalScrollIndicator={false}
+                  onEndReached={loadMoreTo}
+                  onEndReachedThreshold={0.5}
+                  ListFooterComponent={renderFooter}
                 />
               ) : (
                 <View style={styles.emptyState}>
