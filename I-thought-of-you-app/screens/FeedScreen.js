@@ -180,7 +180,7 @@ export default function FeedScreen({ navigation }) {
         keyExtractor={(item) => item.id || item.time || Math.random().toString()}
         renderItem={renderReceivedThought}
         ListEmptyComponent={renderEmptyState('received')}
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={{ paddingBottom: 140 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -205,7 +205,7 @@ export default function FeedScreen({ navigation }) {
         keyExtractor={(item) => 'sent-' + (item.id || item.time || Math.random().toString())}
         renderItem={renderSentThought}
         ListEmptyComponent={renderEmptyState('sent')}
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={{ paddingBottom: 140 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />

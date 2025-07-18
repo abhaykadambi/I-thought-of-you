@@ -90,9 +90,15 @@ router.get('/:friendId', authenticateToken, async (req, res) => {
     // Get thoughts sent by current user to this friend
     const { data: sentThoughts, error: sentError } = await supabase
       .from('thoughts')
-      .select('id')
+      .select(`
+        id,
+        text,
+        image_url,
+        created_at
+      `)
       .eq('sender_id', currentUserId)
-      .eq('recipient_id', friendId);
+      .eq('recipient_id', friendId)
+      .order('created_at', { ascending: false });
 
     if (sentError) {
       console.error('Error fetching sent thoughts:', sentError);
@@ -124,6 +130,13 @@ router.get('/:friendId', authenticateToken, async (req, res) => {
       time: formatTime(thought.created_at)
     }));
 
+    const formattedSentThoughts = sentThoughts.map(thought => ({
+      id: thought.id,
+      text: thought.text,
+      image: thought.image_url,
+      time: formatTime(thought.created_at)
+    }));
+
     res.json({
       friend: {
         id: friend.id,
@@ -132,6 +145,7 @@ router.get('/:friendId', authenticateToken, async (req, res) => {
         avatar: friend.avatar
       },
       thoughts: formattedThoughts,
+      sentThoughts: formattedSentThoughts,
       stats: {
         thoughtsSent: sentThoughts ? sentThoughts.length : 0,
         thoughtsReceived: thoughts ? thoughts.length : 0,

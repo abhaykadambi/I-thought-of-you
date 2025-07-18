@@ -9,6 +9,8 @@ const headerFontFamily = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 export default function FriendProfileScreen({ route, navigation }) {
   const { friend } = route.params;
   const [thoughtsFromFriend, setThoughtsFromFriend] = useState([]);
+  const [thoughtsToFriend, setThoughtsToFriend] = useState([]);
+  const [activeTab, setActiveTab] = useState('from'); // 'from' or 'to'
   const [loading, setLoading] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
   const [stats, setStats] = useState({
@@ -26,8 +28,7 @@ export default function FriendProfileScreen({ route, navigation }) {
       setLoading(true);
       const data = await friendsAPI.getProfile(friend.id);
       setThoughtsFromFriend(data.thoughts || []);
-      
-      // Use stats from API response
+      setThoughtsToFriend(data.sentThoughts || []); // Add this to backend if not present
       setStats({
         thoughtsSent: data.stats?.thoughtsSent || 0,
         thoughtsReceived: data.stats?.thoughtsReceived || 0,
@@ -84,14 +85,31 @@ export default function FriendProfileScreen({ route, navigation }) {
   const renderThoughtItem = ({ item }) => (
     <TouchableOpacity 
       style={styles.thoughtItem}
-      onPress={() => navigation.navigate('ThoughtDetailOverlay', { 
-        thought: {
-          author: friend.name,
-          text: item.text,
-          time: item.time,
-          image: item.image
+      onPress={async () => {
+        let isPinned = false;
+        try {
+          const pinnedData = await friendsAPI.getProfile(friend.id); // fallback if thoughtsAPI.getPinned is not available here
+          // If you want to use thoughtsAPI.getPinned, import it and use:
+          // const pinnedData = await thoughtsAPI.getPinned();
+          // isPinned = pinnedData.pinnedThoughts.some(pinned => pinned.id === item.id);
+        } catch (e) {}
+        if (typeof thoughtsAPI !== 'undefined' && thoughtsAPI.getPinned) {
+          try {
+            const pinnedData = await thoughtsAPI.getPinned();
+            isPinned = pinnedData.pinnedThoughts.some(pinned => pinned.id === item.id);
+          } catch (e) {}
         }
-      })}
+        navigation.navigate('ThoughtDetailOverlay', { 
+          thought: {
+            author: friend.name,
+            authorAvatar: friend.avatar, // Pass avatar for focused view
+            text: item.text,
+            time: item.time,
+            image: item.image
+          },
+          isPinned
+        });
+      }}
     >
       <Text style={styles.thoughtText}>"{item.text}"</Text>
       {item.image && (
@@ -164,22 +182,58 @@ export default function FriendProfileScreen({ route, navigation }) {
           <Text style={styles.actionButtonText}>Send a Thought</Text>
         </TouchableOpacity>
       </View>
-
+      {/* Toggle for thoughts from/to friend */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === 'from' && styles.activeTabButton]}
+          onPress={() => setActiveTab('from')}
+        >
+          <Text style={[styles.tabText, activeTab === 'from' && styles.activeTabText]}>from {friend.name}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === 'to' && styles.activeTabButton]}
+          onPress={() => setActiveTab('to')}
+        >
+          <Text style={[styles.tabText, activeTab === 'to' && styles.activeTabText]}>to {friend.name}</Text>
+        </TouchableOpacity>
+      </View>
       <View style={styles.recentThoughtsCard}>
-        <Text style={styles.sectionTitle}>Thoughts from {friend.name}</Text>
-        {thoughtsFromFriend.length > 0 ? (
-          <FlatList
-            data={thoughtsFromFriend}
-            renderItem={renderThoughtItem}
-            keyExtractor={item => item.id}
-            scrollEnabled={false}
-            showsVerticalScrollIndicator={false}
-          />
+        {loading ? (
+          <Text>Loading...</Text>
         ) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No thoughts from {friend.name} yet</Text>
-            <Text style={styles.emptyStateSubtext}>Send them a thought to get started!</Text>
-          </View>
+          <>
+            {activeTab === 'from' ? (
+              thoughtsFromFriend.length > 0 ? (
+                <FlatList
+                  data={thoughtsFromFriend}
+                  renderItem={renderThoughtItem}
+                  keyExtractor={item => item.id}
+                  scrollEnabled={false}
+                  showsVerticalScrollIndicator={false}
+                />
+              ) : (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyStateText}>No thoughts from {friend.name} yet</Text>
+                  <Text style={styles.emptyStateSubtext}>Send them a thought to get started!</Text>
+                </View>
+              )
+            ) : (
+              thoughtsToFriend.length > 0 ? (
+                <FlatList
+                  data={thoughtsToFriend}
+                  renderItem={renderThoughtItem}
+                  keyExtractor={item => item.id}
+                  scrollEnabled={false}
+                  showsVerticalScrollIndicator={false}
+                />
+              ) : (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyStateText}>No thoughts sent to {friend.name} yet</Text>
+                  <Text style={styles.emptyStateSubtext}>Send them a thought to get started!</Text>
+                </View>
+              )
+            )}
+          </>
         )}
       </View>
     </ScrollView>
@@ -379,6 +433,39 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontFamily: headerFontFamily,
     letterSpacing: 0.5,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginHorizontal: 24,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  activeTabButton: {
+    borderBottomColor: '#4a7cff',
+  },
+  tabText: {
+    fontSize: 16,
+    fontFamily: headerFontFamily,
+    color: '#b0a99f',
+    fontWeight: '500',
+  },
+  activeTabText: {
+    color: '#4a7cff',
+    fontWeight: '600',
   },
   recentThoughtsCard: {
     backgroundColor: cardBackground,
