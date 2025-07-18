@@ -1,6 +1,9 @@
 -- Add avatar column to users table
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT;
 
+-- Add significant_other_id column to users table
+ALTER TABLE users ADD COLUMN IF NOT EXISTS significant_other_id UUID REFERENCES users(id);
+
 -- Drop the existing get_friends function first
 DROP FUNCTION IF EXISTS get_friends(uuid);
 

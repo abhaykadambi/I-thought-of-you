@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform, KeyboardAvoidingView, ActivityIndicator, Modal, Pressable, Linking } from 'react-native';
 import { authAPI } from '../services/api';
 
 const globalBackground = '#f8f5ee';
@@ -12,6 +12,8 @@ export default function SignupScreen({ navigation }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
+  const [pendingSignup, setPendingSignup] = useState(false);
 
   const handleSignUp = async () => {
     if (!email || !password || !name || !phone) {
@@ -22,15 +24,35 @@ export default function SignupScreen({ navigation }) {
       Alert.alert('Error', 'Please enter a valid phone number (at least 8 digits, numbers only)');
       return;
     }
+    // Show modal before proceeding
+    setShowPolicyModal(true);
+    setPendingSignup(true);
+  };
+
+  const doActualSignup = async () => {
     setLoading(true);
     try {
       await authAPI.register({ email, password, name, phone });
+      setShowPolicyModal(false);
+      setPendingSignup(false);
       navigation.navigate('MainApp');
     } catch (error) {
       Alert.alert('Registration Failed', error.response?.data?.error || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAcceptPolicy = () => {
+    setShowPolicyModal(false);
+    setPendingSignup(false);
+    doActualSignup();
+  };
+
+  const handleDeclinePolicy = () => {
+    setShowPolicyModal(false);
+    setPendingSignup(false);
+    Alert.alert('Required', 'You must accept the Privacy Policy and Terms of Service to create an account.');
   };
 
   return (
@@ -91,6 +113,32 @@ export default function SignupScreen({ navigation }) {
       >
         <Text style={styles.backButtonText}>Back to Login</Text>
       </TouchableOpacity>
+      <Modal
+        visible={showPolicyModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPolicyModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Agree to Continue</Text>
+            <Text style={styles.modalText}>
+              To create an account, you must agree to our{' '}
+              <Text style={styles.linkText} onPress={() => Linking.openURL('http://ithoughtofyou.app/privacy')}>Privacy Policy</Text>
+              {' '}and{' '}
+              <Text style={styles.linkText} onPress={() => Linking.openURL('https://ithoughtofyou.app/terms')}>Terms of Service</Text>.
+            </Text>
+            <View style={styles.modalButtonRow}>
+              <Pressable style={styles.modalButton} onPress={handleDeclinePolicy}>
+                <Text style={styles.modalButtonText}>Decline</Text>
+              </Pressable>
+              <Pressable style={[styles.modalButton, styles.acceptButton]} onPress={handleAcceptPolicy}>
+                <Text style={[styles.modalButtonText, styles.acceptButtonText]}>Accept</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -231,5 +279,68 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     fontFamily: headerFontFamily,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCard: {
+    backgroundColor: '#fff9ed',
+    borderRadius: 16,
+    padding: 28,
+    width: '80%',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    color: '#2c2c2c',
+    textAlign: 'center',
+    fontFamily: headerFontFamily,
+  },
+  modalText: {
+    fontSize: 16,
+    color: '#2c2c2c',
+    textAlign: 'center',
+    marginBottom: 20,
+    fontFamily: headerFontFamily,
+  },
+  linkText: {
+    color: '#3498db',
+    textDecorationLine: 'underline',
+  },
+  modalButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 8,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    marginHorizontal: 6,
+    borderRadius: 8,
+    backgroundColor: '#ece6da',
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#2c2c2c',
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: headerFontFamily,
+  },
+  acceptButton: {
+    backgroundColor: '#3498db',
+  },
+  acceptButtonText: {
+    color: '#fff',
   },
 }); 
