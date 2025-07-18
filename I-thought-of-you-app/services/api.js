@@ -201,18 +201,6 @@ export const friendsAPI = {
     const response = await api.delete(`/friends/${friendId}`);
     return response.data;
   },
-
-  // Set significant other
-  setSignificantOther: async (friendId) => {
-    const response = await api.post(`/friends/significant-other/${friendId}`);
-    return response.data;
-  },
-
-  // Unset significant other
-  unsetSignificantOther: async () => {
-    const response = await api.delete('/friends/significant-other');
-    return response.data;
-  },
 };
 
 // Settings API

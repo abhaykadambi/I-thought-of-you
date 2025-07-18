@@ -9,13 +9,6 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const currentUserId = req.user.userId;
 
-    // Get current user's SO
-    const { data: user, error: userError } = await supabase.from('users').select('significant_other_id').eq('id', currentUserId).single();
-    if (userError) {
-      return res.status(500).json({ error: 'Failed to fetch user' });
-    }
-    const soId = user.significant_other_id;
-
     // Get all users who are friends with the current user
     // A friend is someone with an accepted friend_request (either direction)
     const { data: friends, error } = await supabase
@@ -26,10 +19,7 @@ router.get('/', authenticateToken, async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch friends' });
     }
 
-    // Add isSignificantOther field
-    const friendsWithSO = (friends || []).map(f => ({ ...f, isSignificantOther: f.id === soId }));
-
-    res.json({ users: friendsWithSO, significantOtherId: soId });
+    res.json({ users: friends });
   } catch (error) {
     console.error('Users fetch error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -67,13 +57,6 @@ router.get('/:friendId', authenticateToken, async (req, res) => {
   try {
     const { friendId } = req.params;
     const currentUserId = req.user.userId;
-
-    // Get current user's SO
-    const { data: user, error: userError } = await supabase.from('users').select('significant_other_id').eq('id', currentUserId).single();
-    if (userError) {
-      return res.status(500).json({ error: 'Failed to fetch user' });
-    }
-    const soId = user.significant_other_id;
 
     // Get friend's profile
     const { data: friend, error: friendError } = await supabase
@@ -146,8 +129,7 @@ router.get('/:friendId', authenticateToken, async (req, res) => {
         id: friend.id,
         name: friend.name,
         email: friend.email,
-        avatar: friend.avatar,
-        isSignificantOther: friend.id === soId
+        avatar: friend.avatar
       },
       thoughts: formattedThoughts,
       stats: {
@@ -340,45 +322,6 @@ router.delete('/:friendId', authenticateToken, async (req, res) => {
     res.json({ message: 'User unfriended successfully' });
   } catch (error) {
     console.error('Unfriend error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Set significant other
-router.post('/significant-other/:friendId', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const { friendId } = req.params;
-    // Only allow setting SO to a current friend
-    const { data: friends, error: friendsError } = await supabase.rpc('get_friends', { user_id: userId });
-    if (friendsError) {
-      return res.status(500).json({ error: 'Failed to fetch friends' });
-    }
-    const isFriend = friends.some(f => f.id === friendId);
-    if (!isFriend) {
-      return res.status(400).json({ error: 'Can only set a friend as significant other' });
-    }
-    // Update user
-    const { error } = await supabase.from('users').update({ significant_other_id: friendId, updated_at: new Date().toISOString() }).eq('id', userId);
-    if (error) {
-      return res.status(500).json({ error: 'Failed to set significant other' });
-    }
-    res.json({ message: 'Significant other set successfully', significantOtherId: friendId });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Unset significant other
-router.delete('/significant-other', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const { error } = await supabase.from('users').update({ significant_other_id: null, updated_at: new Date().toISOString() }).eq('id', userId);
-    if (error) {
-      return res.status(500).json({ error: 'Failed to unset significant other' });
-    }
-    res.json({ message: 'Significant other unset successfully' });
-  } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });

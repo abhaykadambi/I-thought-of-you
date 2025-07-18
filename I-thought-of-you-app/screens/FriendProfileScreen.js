@@ -16,8 +16,6 @@ export default function FriendProfileScreen({ route, navigation }) {
     thoughtsReceived: 0,
     daysConnected: 0
   });
-  const [isSignificantOther, setIsSignificantOther] = useState(friend.isSignificantOther || false);
-  const [soLoading, setSoLoading] = useState(false);
 
   useEffect(() => {
     loadFriendProfile();
@@ -28,7 +26,8 @@ export default function FriendProfileScreen({ route, navigation }) {
       setLoading(true);
       const data = await friendsAPI.getProfile(friend.id);
       setThoughtsFromFriend(data.thoughts || []);
-      setIsSignificantOther(data.friend.isSignificantOther || false);
+      
+      // Use stats from API response
       setStats({
         thoughtsSent: data.stats?.thoughtsSent || 0,
         thoughtsReceived: data.stats?.thoughtsReceived || 0,
@@ -82,32 +81,6 @@ export default function FriendProfileScreen({ route, navigation }) {
     );
   };
 
-  const handleSetSO = async () => {
-    setSoLoading(true);
-    try {
-      await friendsAPI.setSignificantOther(friend.id);
-      setIsSignificantOther(true);
-      Alert.alert('Success', `${friend.name} is now your Significant Other!`);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to set significant other.');
-    } finally {
-      setSoLoading(false);
-    }
-  };
-
-  const handleUnsetSO = async () => {
-    setSoLoading(true);
-    try {
-      await friendsAPI.unsetSignificantOther();
-      setIsSignificantOther(false);
-      Alert.alert('Removed', `${friend.name} is no longer your Significant Other.`);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to unset significant other.');
-    } finally {
-      setSoLoading(false);
-    }
-  };
-
   const renderThoughtItem = ({ item }) => (
     <TouchableOpacity 
       style={styles.thoughtItem}
@@ -156,33 +129,17 @@ export default function FriendProfileScreen({ route, navigation }) {
       )}
       
       <View style={styles.profileSection}>
-        <View style={{ position: 'relative', alignItems: 'center' }}>
-          {friend.avatar ? (
-            <Image source={{ uri: friend.avatar }} style={styles.profileAvatar} />
-          ) : (
-            <View style={styles.profileAvatarPlaceholder}>
-              <Text style={styles.profileAvatarText}>
-                {friend.name.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          )}
-          {isSignificantOther && (
-            <View style={styles.heartBadge}>
-              <Text style={styles.heartEmoji}>❤️</Text>
-            </View>
-          )}
-        </View>
+        {friend.avatar ? (
+          <Image source={{ uri: friend.avatar }} style={styles.profileAvatar} />
+        ) : (
+          <View style={styles.profileAvatarPlaceholder}>
+            <Text style={styles.profileAvatarText}>
+              {friend.name.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        )}
         <Text style={styles.profileName}>{friend.name}</Text>
         <Text style={styles.profileStatus}>Friend</Text>
-        <TouchableOpacity
-          style={[styles.soButton, isSignificantOther ? styles.unsetSoButton : styles.setSoButton]}
-          onPress={isSignificantOther ? handleUnsetSO : handleSetSO}
-          disabled={soLoading}
-        >
-          <Text style={[styles.soButtonText, isSignificantOther ? styles.unsetSoButtonText : styles.setSoButtonText]}>
-            {isSignificantOther ? 'Remove Significant Other' : 'Set as Significant Other'}
-          </Text>
-        </TouchableOpacity>
       </View>
 
       <View style={styles.statsCard}>
@@ -487,50 +444,5 @@ const styles = StyleSheet.create({
     fontFamily: headerFontFamily,
     textAlign: 'center',
     opacity: 0.7,
-  },
-  heartBadge: {
-    position: 'absolute',
-    bottom: -6,
-    right: -6,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 2,
-    zIndex: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  heartEmoji: {
-    fontSize: 20,
-    marginLeft: 1,
-    marginTop: 1,
-  },
-  soButton: {
-    marginTop: 12,
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    alignItems: 'center',
-  },
-  setSoButton: {
-    backgroundColor: '#e74c3c',
-  },
-  unsetSoButton: {
-    backgroundColor: '#ece6da',
-    borderWidth: 1,
-    borderColor: '#e74c3c',
-  },
-  soButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    fontFamily: headerFontFamily,
-  },
-  setSoButtonText: {
-    color: '#fff',
-  },
-  unsetSoButtonText: {
-    color: '#e74c3c',
   },
 }); 

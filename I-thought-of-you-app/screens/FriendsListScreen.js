@@ -19,7 +19,6 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
   const [loadingSuggested, setLoadingSuggested] = useState(false);
   const [incomingRequests, setIncomingRequests] = useState([]);
   const [responding, setResponding] = useState(null);
-  const [significantOtherId, setSignificantOtherId] = useState(null);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -80,7 +79,6 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
       setLoading(true);
       const data = await friendsAPI.getAll();
       setFriends(data.users || []);
-      setSignificantOtherId(data.significantOtherId || null);
     } catch (error) {
       console.error('Error loading friends:', error);
       Alert.alert('Error', 'Failed to load friends. Please try again.');
@@ -129,34 +127,6 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
     }
   };
 
-  // Find SO and other friends
-  const significantOther = friends.find(f => f.id === significantOtherId);
-  const otherFriends = friends.filter(f => f.id !== significantOtherId);
-
-  // Banner if no SO and has friends
-  const showSetSOBanner = !significantOtherId && friends.length > 0;
-
-  const renderSOCard = () => (
-    <TouchableOpacity
-      style={styles.soCard}
-      onPress={() => navigation.navigate('FriendProfile', { friend: { ...significantOther, isSignificantOther: true } })}
-    >
-      {significantOther.avatar ? (
-        <Image source={{ uri: significantOther.avatar }} style={styles.soAvatar} />
-      ) : (
-        <View style={styles.soAvatarPlaceholder}>
-          <Text style={styles.avatarText}>{significantOther.name.charAt(0).toUpperCase()}</Text>
-        </View>
-      )}
-      <View style={styles.heartBadgeList}>
-        <Text style={styles.heartEmojiList}>❤️</Text>
-      </View>
-      <Text style={styles.soName}>{significantOther.name}</Text>
-      <Text style={styles.soLabel}>Significant Other</Text>
-      <Text style={styles.arrow}>›</Text>
-    </TouchableOpacity>
-  );
-
   const renderItem = ({ item }) => (
     <TouchableOpacity 
       style={styles.friendCard}
@@ -172,11 +142,6 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
         </View>
       )}
       <Text style={styles.friendName}>{item.name}</Text>
-      {item.id === significantOtherId && (
-        <View style={styles.heartBadgeListSmall}>
-          <Text style={styles.heartEmojiListSmall}>❤️</Text>
-        </View>
-      )}
       <Text style={styles.arrow}>›</Text>
     </TouchableOpacity>
   );
@@ -238,12 +203,6 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
           </TouchableOpacity>
         </View>
       </View>
-      {showSetSOBanner && (
-        <View style={styles.soBanner}>
-          <Text style={styles.soBannerText}>Set your Significant Other for a special place in your app! ❤️</Text>
-        </View>
-      )}
-      {significantOther && renderSOCard()}
       {/* Incoming Friend Requests */}
       {incomingRequests.length > 0 && (
         <View style={styles.requestsSection}>
@@ -288,16 +247,7 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
           ))}
         </View>
       )}
-      {/* Friends List (excluding SO) */}
-      <FlatList
-        data={otherFriends}
-        keyExtractor={item => item.id}
-        renderItem={renderItem}
-        ListEmptyComponent={renderEmptyState}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
-      {/* Suggested Friends SectionList remains unchanged */}
+      {/* Unified SectionList for Friends and Suggested Friends */}
       <SectionList
         sections={sections}
         keyExtractor={item => item.id}
@@ -553,107 +503,5 @@ const styles = StyleSheet.create({
     marginTop: 24,
     marginBottom: 10,
     fontFamily: headerFontFamily,
-  },
-  soBanner: {
-    backgroundColor: '#fff0f0',
-    borderRadius: 12,
-    marginHorizontal: 24,
-    marginBottom: 16,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e74c3c',
-  },
-  soBannerText: {
-    color: '#e74c3c',
-    fontSize: 16,
-    fontWeight: 'bold',
-    fontFamily: headerFontFamily,
-    textAlign: 'center',
-  },
-  soCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff9ed',
-    borderRadius: 16,
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    marginHorizontal: 24,
-    marginBottom: 18,
-    shadowColor: '#e74c3c',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 3,
-    borderWidth: 2,
-    borderColor: '#e74c3c',
-  },
-  soAvatar: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    marginRight: 18,
-    backgroundColor: '#ece6da',
-  },
-  soAvatarPlaceholder: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    marginRight: 18,
-    backgroundColor: '#e74c3c',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  soName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#e74c3c',
-    fontFamily: headerFontFamily,
-    flex: 1,
-  },
-  soLabel: {
-    fontSize: 14,
-    color: '#e74c3c',
-    fontFamily: headerFontFamily,
-    marginLeft: 8,
-    fontWeight: 'bold',
-  },
-  heartBadgeList: {
-    position: 'absolute',
-    bottom: -6,
-    right: 38,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 2,
-    zIndex: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  heartEmojiList: {
-    fontSize: 20,
-    marginLeft: 1,
-    marginTop: 1,
-  },
-  heartBadgeListSmall: {
-    position: 'absolute',
-    bottom: -4,
-    right: 38,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 1,
-    zIndex: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
-    shadowRadius: 1,
-    elevation: 1,
-  },
-  heartEmojiListSmall: {
-    fontSize: 14,
-    marginLeft: 1,
-    marginTop: 1,
   },
 }); 
