@@ -37,7 +37,15 @@ export default function SignupScreen({ navigation }) {
       setPendingSignup(false);
       navigation.navigate('MainApp');
     } catch (error) {
-      Alert.alert('Registration Failed', error.response?.data?.error || 'Registration failed. Please try again.');
+      const backendError = error.response?.data?.error || '';
+      if (
+        backendError.includes('User with this email or phone already exists') ||
+        backendError.toLowerCase().includes('already exists')
+      ) {
+        Alert.alert('Registration Failed', 'An account with this email or phone number already exists. Please use a different email or phone number.');
+      } else {
+        Alert.alert('Registration Failed', backendError || 'Registration failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -124,7 +132,7 @@ export default function SignupScreen({ navigation }) {
             <Text style={styles.modalTitle}>Agree to Continue</Text>
             <Text style={styles.modalText}>
               To create an account, you must agree to our{' '}
-              <Text style={styles.linkText} onPress={() => Linking.openURL('http://ithoughtofyou.app/privacy')}>Privacy Policy</Text>
+              <Text style={styles.linkText} onPress={() => Linking.openURL('https://ithoughtofyou.app/privacy')}>Privacy Policy</Text>
               {' '}and{' '}
               <Text style={styles.linkText} onPress={() => Linking.openURL('https://ithoughtofyou.app/terms')}>Terms of Service</Text>.
             </Text>
