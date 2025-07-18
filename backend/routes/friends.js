@@ -27,7 +27,7 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 
     // Add isSignificantOther field
-    const friendsWithSO = friends.map(f => ({ ...f, isSignificantOther: f.id === soId }));
+    const friendsWithSO = (friends || []).map(f => ({ ...f, isSignificantOther: f.id === soId }));
 
     res.json({ users: friendsWithSO, significantOtherId: soId });
   } catch (error) {
