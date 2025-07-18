@@ -151,6 +151,9 @@ export default function FeedScreen({ navigation }) {
         ListEmptyComponent={renderEmptyState('received')}
         contentContainerStyle={{ paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
         // onEndReached={handleLoadMoreReceived} // For pagination
         // onEndReachedThreshold={0.5}
       />
@@ -172,6 +175,9 @@ export default function FeedScreen({ navigation }) {
         ListEmptyComponent={renderEmptyState('sent')}
         contentContainerStyle={{ paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
         // onEndReached={handleLoadMoreSent} // For pagination
         // onEndReachedThreshold={0.5}
       />
