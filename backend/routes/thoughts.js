@@ -72,6 +72,8 @@ router.post('/upload-image', authenticateToken, upload.single('image'), async (r
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const offset = parseInt(req.query.offset, 10) || 0;
 
     // Get user's friends
     const { data: friends, error: friendsError } = await supabase
@@ -88,7 +90,9 @@ router.get('/', authenticateToken, async (req, res) => {
     if (friendIds.length === 0) {
       return res.json({
         received: [],
-        sent: []
+        sent: [],
+        receivedTotal: 0,
+        sentTotal: 0
       });
     }
 
@@ -117,8 +121,12 @@ router.get('/', authenticateToken, async (req, res) => {
     const receivedThoughts = allThoughts.filter(thought => thought.recipient_id === userId);
     const sentThoughts = allThoughts.filter(thought => thought.sender_id === userId);
 
+    // Pagination for received and sent
+    const paginatedReceived = receivedThoughts.slice(offset, offset + limit);
+    const paginatedSent = sentThoughts.slice(offset, offset + limit);
+
     // Format the data
-    const formattedReceived = receivedThoughts.map(thought => ({
+    const formattedReceived = paginatedReceived.map(thought => ({
       id: thought.id,
       author: thought.sender.name,
       authorAvatar: thought.sender.avatar,
@@ -127,7 +135,7 @@ router.get('/', authenticateToken, async (req, res) => {
       time: formatTime(thought.created_at)
     }));
 
-    const formattedSent = sentThoughts.map(thought => ({
+    const formattedSent = paginatedSent.map(thought => ({
       id: thought.id,
       author: 'You',
       recipient: thought.recipient.name,
@@ -138,7 +146,9 @@ router.get('/', authenticateToken, async (req, res) => {
 
     res.json({
       received: formattedReceived,
-      sent: formattedSent
+      sent: formattedSent,
+      receivedTotal: receivedThoughts.length,
+      sentTotal: sentThoughts.length
     });
 
   } catch (error) {

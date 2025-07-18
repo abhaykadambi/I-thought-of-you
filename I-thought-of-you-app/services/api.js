@@ -149,8 +149,10 @@ export const authAPI = {
 // Thoughts API
 export const thoughtsAPI = {
   // Get all thoughts (received and sent)
-  getAll: async () => {
-    const response = await api.get('/thoughts');
+  getAll: async ({ limit = 10, offset = 0 } = {}) => {
+    const response = await api.get('/thoughts', {
+      params: { limit, offset },
+    });
     return response.data;
   },
 

@@ -25,63 +25,94 @@ export default function FeedScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastLoadTime, setLastLoadTime] = useState(0);
+  const [receivedOffset, setReceivedOffset] = useState(0);
+  const [sentOffset, setSentOffset] = useState(0);
+  const [receivedTotal, setReceivedTotal] = useState(0);
+  const [sentTotal, setSentTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const PAGE_SIZE = 10;
 
   useEffect(() => {
-    loadThoughts();
-  }, []);
+    loadInitialThoughts();
+  }, [activeTab]);
 
   // Refresh thoughts when screen comes into focus (e.g., after creating a thought)
   useFocusEffect(
     React.useCallback(() => {
-      // Only reload if we don't have any thoughts loaded yet or if it's been more than 5 minutes
       const now = Date.now();
       const shouldReload = (receivedThoughts.length === 0 && sentThoughts.length === 0) || 
                           (lastLoadTime > 0 && (now - lastLoadTime) > 300000); // 5 minutes
-      
       if (shouldReload) {
-        loadThoughts();
+        loadInitialThoughts();
       }
-    }, [receivedThoughts.length, sentThoughts.length, lastLoadTime])
+    }, [receivedThoughts.length, sentThoughts.length, lastLoadTime, activeTab])
   );
 
-  const loadThoughts = async (forceRefresh = false) => {
+  const loadInitialThoughts = async () => {
+    setLoading(true);
+    setLoadingMore(false);
+    setRefreshing(false);
+    setReceivedOffset(0);
+    setSentOffset(0);
     try {
-      // Check if we should skip loading (cache for 30 seconds unless force refresh)
-      const now = Date.now();
-      if (!forceRefresh && lastLoadTime > 0 && (now - lastLoadTime) < 30000) {
-        return;
-      }
-
-      setLoading(true);
-      const data = await thoughtsAPI.getAll();
+      const data = await thoughtsAPI.getAll({ limit: PAGE_SIZE, offset: 0 });
       setReceivedThoughts(data.received || []);
       setSentThoughts(data.sent || []);
-      setLastLoadTime(now);
+      setReceivedTotal(data.receivedTotal || 0);
+      setSentTotal(data.sentTotal || 0);
+      setReceivedOffset(data.received ? data.received.length : 0);
+      setSentOffset(data.sent ? data.sent.length : 0);
+      setLastLoadTime(Date.now());
     } catch (error) {
       console.error('Error loading thoughts:', error);
       Alert.alert('Error', 'Failed to load thoughts. Please try again.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadThoughts(true); // Force refresh
+    await loadInitialThoughts();
     setRefreshing(false);
   };
 
-  const renderEmptyState = (type) => (
-    <View style={styles.emptyContainer}>
-      <Text style={styles.emptyTitle}>No thoughts yet</Text>
-      <Text style={styles.emptyMessage}>
-        {type === 'received' 
-          ? "When friends send you thoughts, they'll appear here."
-          : "Thoughts you send to friends will appear here."
-        }
-      </Text>
+  const loadMoreReceived = async () => {
+    if (loadingMore || receivedThoughts.length >= receivedTotal) return;
+    setLoadingMore(true);
+    try {
+      const data = await thoughtsAPI.getAll({ limit: PAGE_SIZE, offset: receivedOffset });
+      setReceivedThoughts(prev => [...prev, ...(data.received || [])]);
+      setReceivedOffset(prev => prev + (data.received ? data.received.length : 0));
+      setReceivedTotal(data.receivedTotal || receivedTotal);
+    } catch (error) {
+      console.error('Error loading more received thoughts:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const loadMoreSent = async () => {
+    if (loadingMore || sentThoughts.length >= sentTotal) return;
+    setLoadingMore(true);
+    try {
+      const data = await thoughtsAPI.getAll({ limit: PAGE_SIZE, offset: sentOffset });
+      setSentThoughts(prev => [...prev, ...(data.sent || [])]);
+      setSentOffset(prev => prev + (data.sent ? data.sent.length : 0));
+      setSentTotal(data.sentTotal || sentTotal);
+    } catch (error) {
+      console.error('Error loading more sent thoughts:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const renderFooter = () => loadingMore ? (
+    <View style={{ padding: 16 }}>
+      <ActivityIndicator size="small" color="#4a7cff" />
     </View>
-  );
+  ) : null;
 
   const renderReceivedThought = ({ item }) => (
     <TouchableOpacity
@@ -154,8 +185,9 @@ export default function FeedScreen({ navigation }) {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        // onEndReached={handleLoadMoreReceived} // For pagination
-        // onEndReachedThreshold={0.5}
+        onEndReached={loadMoreReceived}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={renderFooter}
       />
     )
   );
@@ -178,21 +210,44 @@ export default function FeedScreen({ navigation }) {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        // onEndReached={handleLoadMoreSent} // For pagination
-        // onEndReachedThreshold={0.5}
+        onEndReached={loadMoreSent}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={renderFooter}
       />
     )
   );
 
+  const renderEmptyState = (type) => (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyTitle}>No thoughts yet</Text>
+      <Text style={styles.emptyMessage}>
+        {type === 'received' 
+          ? "When friends send you thoughts, they'll appear here."
+          : "Thoughts you send to friends will appear here."
+        }
+      </Text>
+    </View>
+  );
+
+  const handleTabSwitch = (tab) => {
+    setActiveTab(tab);
+    setLoading(true);
+    setReceivedThoughts([]);
+    setSentThoughts([]);
+    setReceivedOffset(0);
+    setSentOffset(0);
+    setReceivedTotal(0);
+    setSentTotal(0);
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Your Feed</Text>
-      
       {/* Tab Switch */}
       <View style={styles.tabContainer}>
         <TouchableOpacity 
           style={[styles.tabButton, activeTab === 'received' && styles.activeTabButton]} 
-          onPress={() => setActiveTab('received')}
+          onPress={() => handleTabSwitch('received')}
         >
           <Text style={[styles.tabText, activeTab === 'received' && styles.activeTabText]}>
             Recent Thoughts
@@ -200,14 +255,13 @@ export default function FeedScreen({ navigation }) {
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.tabButton, activeTab === 'sent' && styles.activeTabButton]} 
-          onPress={() => setActiveTab('sent')}
+          onPress={() => handleTabSwitch('sent')}
         >
           <Text style={[styles.tabText, activeTab === 'sent' && styles.activeTabText]}>
             Thoughts I've Sent
           </Text>
         </TouchableOpacity>
       </View>
-
       {/* Content */}
       {activeTab === 'received' ? renderReceivedThoughts() : renderSentThoughts()}
     </View>
