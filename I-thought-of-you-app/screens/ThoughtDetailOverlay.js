@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert, Image } from 'react-native';
-import { thoughtsAPI } from '../services/api';
+import { thoughtsAPI, authAPI } from '../services/api';
+import ReactionPicker from '../components/ReactionPicker';
+import ReactionDisplay from '../components/ReactionDisplay';
 
 const globalBackground = '#f8f5ee';
 const cardBackground = '#fff9ed';
@@ -9,13 +11,64 @@ const headerFontFamily = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 export default function ThoughtDetailOverlay({ route, navigation }) {
   const { thought, isPinned: initialPinStatus } = route.params;
   const [isPinned, setIsPinned] = useState(initialPinStatus || false);
+  const [reactions, setReactions] = useState([]);
+  const [userReaction, setUserReaction] = useState(null);
+  const [loadingReactions, setLoadingReactions] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
 
   // Check if thought is already pinned when component mounts (only if not provided)
   useEffect(() => {
     if (initialPinStatus === undefined) {
       checkPinStatus();
     }
+    loadReactions();
+    loadCurrentUser();
   }, []);
+
+  const loadCurrentUser = async () => {
+    try {
+      const user = await authAPI.getStoredUser();
+      setCurrentUser(user);
+    } catch (error) {
+      console.error('Error loading current user:', error);
+    }
+  };
+
+  const loadReactions = async () => {
+    try {
+      setLoadingReactions(true);
+      const { reactions: reactionData } = await thoughtsAPI.getReactions(thought.id);
+      setReactions(reactionData);
+      
+      // Find current user's reaction
+      const user = await authAPI.getStoredUser();
+      const userReactionData = reactionData.find(r => r.user.id === user?.id);
+      setUserReaction(userReactionData?.reaction_type || null);
+    } catch (error) {
+      console.error('Error loading reactions:', error);
+    } finally {
+      setLoadingReactions(false);
+    }
+  };
+
+  const handleReaction = async (reactionType) => {
+    try {
+      if (userReaction === reactionType) {
+        // Remove reaction
+        await thoughtsAPI.removeReaction(thought.id);
+        setUserReaction(null);
+      } else {
+        // Add/update reaction
+        await thoughtsAPI.addReaction(thought.id, reactionType);
+        setUserReaction(reactionType);
+      }
+      // Reload reactions
+      await loadReactions();
+    } catch (error) {
+      console.error('Error updating reaction:', error);
+      Alert.alert('Error', 'Failed to update reaction. Please try again.');
+    }
+  };
 
   const checkPinStatus = async () => {
     try {
@@ -109,7 +162,21 @@ export default function ThoughtDetailOverlay({ route, navigation }) {
           </View>
         )}
         <Text style={styles.time}>{thought.time}</Text>
+        
+        {/* Display reactions */}
+        <ReactionDisplay 
+          reactions={reactions} 
+          currentUserId={currentUser?.id} 
+        />
       </View>
+      
+      {/* Add reaction picker for recipients */}
+      <ReactionPicker
+        onReaction={handleReaction}
+        userReaction={userReaction}
+        isRecipient={thought.author !== 'You' && !thought.recipient}
+      />
+      
       {thought.author !== 'You' && !thought.recipient && (
         <TouchableOpacity 
           style={[styles.pinButton, isPinned && styles.pinButtonActive]} 

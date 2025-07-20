@@ -185,6 +185,24 @@ export const thoughtsAPI = {
     const response = await api.delete(`/thoughts/pin/${thoughtId}`);
     return response.data;
   },
+
+  // Get reactions for a thought
+  getReactions: async (thoughtId) => {
+    const response = await api.get(`/thoughts/${thoughtId}/reactions`);
+    return response.data;
+  },
+
+  // Add/update reaction
+  addReaction: async (thoughtId, reactionType) => {
+    const response = await api.post(`/thoughts/${thoughtId}/reactions`, { reactionType });
+    return response.data;
+  },
+
+  // Remove reaction
+  removeReaction: async (thoughtId) => {
+    const response = await api.delete(`/thoughts/${thoughtId}/reactions`);
+    return response.data;
+  },
 };
 
 // Friends API

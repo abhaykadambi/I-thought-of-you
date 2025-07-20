@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, Image, RefreshControl, FlatList, ActivityIndicator } from 'react-native';
-import { thoughtsAPI } from '../services/api';
+import { thoughtsAPI, authAPI } from '../services/api';
 import { useFocusEffect } from '@react-navigation/native';
+import ReactionDisplay from '../components/ReactionDisplay';
 
 const globalBackground = '#f8f5ee';
 const cardBackground = '#fff9ed';
@@ -30,11 +31,22 @@ export default function FeedScreen({ navigation }) {
   const [receivedTotal, setReceivedTotal] = useState(0);
   const [sentTotal, setSentTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const PAGE_SIZE = 10;
 
   useEffect(() => {
     loadInitialThoughts();
+    loadCurrentUser();
   }, [activeTab]);
+
+  const loadCurrentUser = async () => {
+    try {
+      const user = await authAPI.getStoredUser();
+      setCurrentUser(user);
+    } catch (error) {
+      console.error('Error loading current user:', error);
+    }
+  };
 
   const loadInitialThoughts = async () => {
     setLoading(true);
@@ -125,6 +137,10 @@ export default function FeedScreen({ navigation }) {
         <Image source={{ uri: item.image }} style={styles.thoughtImage} />
       )}
       <Text style={styles.thoughtTime}>{item.time}</Text>
+      <ReactionDisplay 
+        reactions={item.reactions} 
+        currentUserId={currentUser?.id} 
+      />
     </TouchableOpacity>
   );
 
@@ -151,6 +167,10 @@ export default function FeedScreen({ navigation }) {
         <Image source={{ uri: item.image }} style={styles.thoughtImage} />
       )}
       <Text style={styles.thoughtTime}>{item.time}</Text>
+      <ReactionDisplay 
+        reactions={item.reactions} 
+        currentUserId={currentUser?.id} 
+      />
     </TouchableOpacity>
   );
 

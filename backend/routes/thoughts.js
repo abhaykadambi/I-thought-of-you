@@ -389,4 +389,132 @@ function formatTime(timestamp) {
   }
 }
 
+// GET /thoughts/:thoughtId/reactions - Get reactions for a thought
+router.get('/:thoughtId/reactions', authenticateToken, async (req, res) => {
+  try {
+    const { thoughtId } = req.params;
+    const currentUserId = req.user.userId;
+
+    // Verify user has access to this thought
+    const { data: thought, error: thoughtError } = await supabase
+      .from('thoughts')
+      .select('id, sender_id, recipient_id')
+      .eq('id', thoughtId)
+      .single();
+
+    if (thoughtError || !thought) {
+      return res.status(404).json({ error: 'Thought not found' });
+    }
+
+    if (thought.sender_id !== currentUserId && thought.recipient_id !== currentUserId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Get reactions with user info
+    const { data: reactions, error } = await supabase
+      .from('thought_reactions')
+      .select(`
+        id,
+        reaction_type,
+        created_at,
+        user:user_id(id, name, username, avatar)
+      `)
+      .eq('thought_id', thoughtId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching reactions:', error);
+      return res.status(500).json({ error: 'Failed to fetch reactions' });
+    }
+
+    res.json({ reactions: reactions || [] });
+  } catch (error) {
+    console.error('Get reactions error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /thoughts/:thoughtId/reactions - Add/update reaction
+router.post('/:thoughtId/reactions', authenticateToken, async (req, res) => {
+  try {
+    const { thoughtId } = req.params;
+    const { reactionType } = req.body;
+    const currentUserId = req.user.userId;
+
+    // Validate reaction type
+    const validReactions = ['happy', 'sad', 'disgust', 'laughing', 'anger', 'smirk'];
+    if (!validReactions.includes(reactionType)) {
+      return res.status(400).json({ error: 'Invalid reaction type' });
+    }
+
+    // Verify user is the recipient of this thought
+    const { data: thought, error: thoughtError } = await supabase
+      .from('thoughts')
+      .select('id, recipient_id')
+      .eq('id', thoughtId)
+      .single();
+
+    if (thoughtError || !thought) {
+      return res.status(404).json({ error: 'Thought not found' });
+    }
+
+    if (thought.recipient_id !== currentUserId) {
+      return res.status(403).json({ error: 'Only the recipient can react to thoughts' });
+    }
+
+    // Upsert reaction (insert or update)
+    const { data: reaction, error } = await supabase
+      .from('thought_reactions')
+      .upsert({
+        thought_id: thoughtId,
+        user_id: currentUserId,
+        reaction_type: reactionType,
+        created_at: new Date().toISOString()
+      }, {
+        onConflict: 'thought_id,user_id'
+      })
+      .select(`
+        id,
+        reaction_type,
+        created_at,
+        user:user_id(id, name, username, avatar)
+      `)
+      .single();
+
+    if (error) {
+      console.error('Error creating reaction:', error);
+      return res.status(500).json({ error: 'Failed to create reaction' });
+    }
+
+    res.status(201).json({ reaction });
+  } catch (error) {
+    console.error('Create reaction error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /thoughts/:thoughtId/reactions - Remove reaction
+router.delete('/:thoughtId/reactions', authenticateToken, async (req, res) => {
+  try {
+    const { thoughtId } = req.params;
+    const currentUserId = req.user.userId;
+
+    const { error } = await supabase
+      .from('thought_reactions')
+      .delete()
+      .eq('thought_id', thoughtId)
+      .eq('user_id', currentUserId);
+
+    if (error) {
+      console.error('Error deleting reaction:', error);
+      return res.status(500).json({ error: 'Failed to delete reaction' });
+    }
+
+    res.json({ message: 'Reaction removed successfully' });
+  } catch (error) {
+    console.error('Delete reaction error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router; 

@@ -275,7 +275,6 @@ export default function ProfileScreen({ navigation }) {
         {user?.username && (
           <Text style={styles.username}>@{user.username}</Text>
         )}
-            <Text style={styles.email}>{user?.email}</Text>
           </>
         )}
       </View>
