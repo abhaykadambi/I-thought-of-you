@@ -11,17 +11,24 @@ export default function SignupScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPolicyModal, setShowPolicyModal] = useState(false);
   const [pendingSignup, setPendingSignup] = useState(false);
 
   const handleSignUp = async () => {
-    if (!email || !password || !name || !phone) {
+    if (!email || !password || !name || !phone || !username) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
     if (!/^\d{8,}$/.test(phone)) {
       Alert.alert('Error', 'Please enter a valid phone number (at least 8 digits, numbers only)');
+      return;
+    }
+    // Validate username format
+    const usernameRegex = /^[a-zA-Z0-9_]{3,32}$/;
+    if (!usernameRegex.test(username)) {
+      Alert.alert('Error', 'Username must be 3-32 characters long and contain only letters, numbers, and underscores');
       return;
     }
     // Show modal before proceeding
@@ -32,17 +39,17 @@ export default function SignupScreen({ navigation }) {
   const doActualSignup = async () => {
     setLoading(true);
     try {
-      await authAPI.register({ email, password, name, phone });
+      await authAPI.register({ email, password, name, phone, username });
       setShowPolicyModal(false);
       setPendingSignup(false);
       navigation.navigate('MainApp');
     } catch (error) {
       const backendError = error.response?.data?.error || '';
       if (
-        backendError.includes('User with this email or phone already exists') ||
+        backendError.includes('User with this email, phone, or username already exists') ||
         backendError.toLowerCase().includes('already exists')
       ) {
-        Alert.alert('Registration Failed', 'An account with this email or phone number already exists. Please use a different email or phone number.');
+        Alert.alert('Registration Failed', 'An account with this email, phone number, or username already exists. Please use different credentials.');
       } else {
         Alert.alert('Registration Failed', backendError || 'Registration failed. Please try again.');
       }
@@ -79,6 +86,15 @@ export default function SignupScreen({ navigation }) {
           value={name}
           onChangeText={setName}
           autoCapitalize="words"
+          placeholderTextColor="#b0a99f"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Username"
+          value={username}
+          onChangeText={setUsername}
+          autoCapitalize="none"
+          autoCorrect={false}
           placeholderTextColor="#b0a99f"
         />
         <TextInput

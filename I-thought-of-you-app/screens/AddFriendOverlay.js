@@ -18,8 +18,10 @@ export default function AddFriendOverlay({ navigation }) {
     // Simple email regex
     const isEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contact);
     const isPhone = /^\d{8,}$/.test(contact);
-    if (!isEmail && !isPhone) {
-      setSendError('Enter a valid email address or phone number (at least 8 digits)');
+    // Username regex (3-32 chars, letters, numbers, underscores)
+    const isUsername = /^[a-zA-Z0-9_]{3,32}$/.test(contact);
+    if (!isEmail && !isPhone && !isUsername) {
+      setSendError('Enter a valid email address, phone number (at least 8 digits), or username (3-32 characters, letters, numbers, underscores)');
       return;
     }
     setSending(true);
@@ -56,7 +58,7 @@ export default function AddFriendOverlay({ navigation }) {
         <View style={styles.addRow}>
           <TextInput
             style={styles.input}
-            placeholder="Add by phone number or email"
+            placeholder="Add by username, email, or phone"
             value={contact}
             onChangeText={setContact}
             keyboardType="default"

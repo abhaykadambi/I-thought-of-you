@@ -272,6 +272,9 @@ export default function ProfileScreen({ navigation }) {
               style={styles.avatar}
             />
             <Text style={styles.name}>{user?.name || 'No Name'}</Text>
+        {user?.username && (
+          <Text style={styles.username}>@{user.username}</Text>
+        )}
             <Text style={styles.email}>{user?.email}</Text>
           </>
         )}
@@ -347,6 +350,13 @@ const styles = StyleSheet.create({
     fontFamily: headerFontFamily,
     color: '#2c2c2c',
     letterSpacing: 0.5,
+  },
+  username: {
+    fontSize: 16,
+    color: '#4a7cff',
+    fontFamily: headerFontFamily,
+    marginTop: 2,
+    marginBottom: 4,
   },
   email: {
     fontSize: 16,

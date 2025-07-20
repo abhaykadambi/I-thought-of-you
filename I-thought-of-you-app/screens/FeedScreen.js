@@ -36,22 +36,9 @@ export default function FeedScreen({ navigation }) {
     loadInitialThoughts();
   }, [activeTab]);
 
-  // Refresh thoughts when screen comes into focus (e.g., after creating a thought)
-  useFocusEffect(
-    React.useCallback(() => {
-      const now = Date.now();
-      const shouldReload = (receivedThoughts.length === 0 && sentThoughts.length === 0) || 
-                          (lastLoadTime > 0 && (now - lastLoadTime) > 300000); // 5 minutes
-      if (shouldReload) {
-        loadInitialThoughts();
-      }
-    }, [receivedThoughts.length, sentThoughts.length, lastLoadTime, activeTab])
-  );
-
   const loadInitialThoughts = async () => {
     setLoading(true);
     setLoadingMore(false);
-    setRefreshing(false);
     setReceivedOffset(0);
     setSentOffset(0);
     try {
@@ -68,7 +55,7 @@ export default function FeedScreen({ navigation }) {
       Alert.alert('Error', 'Failed to load thoughts. Please try again.');
     } finally {
       setLoading(false);
-      setRefreshing(false);
+      // Do NOT setRefreshing(false) here!
     }
   };
 
@@ -168,53 +155,51 @@ export default function FeedScreen({ navigation }) {
   );
 
   const renderReceivedThoughts = () => (
-    loading ? (
-      <>
-        <SkeletonThought />
-        <SkeletonThought />
-        <SkeletonThought />
-      </>
-    ) : (
-      <FlatList
-        data={receivedThoughts}
-        keyExtractor={(item) => item.id || item.time || Math.random().toString()}
-        renderItem={renderReceivedThought}
-        ListEmptyComponent={renderEmptyState('received')}
-        contentContainerStyle={{ paddingBottom: 140 }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        onEndReached={loadMoreReceived}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={renderFooter}
-      />
-    )
+    <FlatList
+      style={{ flex: 1 }}
+      data={receivedThoughts}
+      keyExtractor={(item) => item.id || item.time || Math.random().toString()}
+      renderItem={renderReceivedThought}
+      contentContainerStyle={{ paddingBottom: 140, flexGrow: 1 }}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+      onEndReached={loadMoreReceived}
+      onEndReachedThreshold={0.5}
+      ListFooterComponent={renderFooter}
+      ListEmptyComponent={loading ? (
+        <View>
+          <SkeletonThought />
+          <SkeletonThought />
+          <SkeletonThought />
+        </View>
+      ) : renderEmptyState('received')}
+    />
   );
 
   const renderSentThoughts = () => (
-    loading ? (
-      <>
-        <SkeletonThought />
-        <SkeletonThought />
-        <SkeletonThought />
-      </>
-    ) : (
-      <FlatList
-        data={sentThoughts}
-        keyExtractor={(item) => 'sent-' + (item.id || item.time || Math.random().toString())}
-        renderItem={renderSentThought}
-        ListEmptyComponent={renderEmptyState('sent')}
-        contentContainerStyle={{ paddingBottom: 140 }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        onEndReached={loadMoreSent}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={renderFooter}
-      />
-    )
+    <FlatList
+      style={{ flex: 1 }}
+      data={sentThoughts}
+      keyExtractor={(item) => 'sent-' + (item.id || item.time || Math.random().toString())}
+      renderItem={renderSentThought}
+      contentContainerStyle={{ paddingBottom: 140, flexGrow: 1 }}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+      onEndReached={loadMoreSent}
+      onEndReachedThreshold={0.5}
+      ListFooterComponent={renderFooter}
+      ListEmptyComponent={loading ? (
+        <View>
+          <SkeletonThought />
+          <SkeletonThought />
+          <SkeletonThought />
+        </View>
+      ) : renderEmptyState('sent')}
+    />
   );
 
   const renderEmptyState = (type) => (
@@ -231,13 +216,7 @@ export default function FeedScreen({ navigation }) {
 
   const handleTabSwitch = (tab) => {
     setActiveTab(tab);
-    setLoading(true);
-    setReceivedThoughts([]);
-    setSentThoughts([]);
-    setReceivedOffset(0);
-    setSentOffset(0);
-    setReceivedTotal(0);
-    setSentTotal(0);
+    // Do NOT reset loading or clear thoughts here
   };
 
   return (
@@ -290,11 +269,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   emptyContainer: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
-    paddingTop: 60,
+    paddingTop: 80,
+    paddingBottom: 80,
   },
   emptyTitle: {
     fontSize: 24,

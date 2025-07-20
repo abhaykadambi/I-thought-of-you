@@ -63,7 +63,7 @@ router.get('/:friendId', authenticateToken, async (req, res) => {
     // Get friend's profile
     const { data: friend, error: friendError } = await supabase
       .from('users')
-      .select('id, name, email, avatar, created_at')
+      .select('id, name, email, username, avatar, created_at')
       .eq('id', friendId)
       .single();
 
@@ -148,6 +148,7 @@ router.get('/:friendId', authenticateToken, async (req, res) => {
         id: friend.id,
         name: friend.name,
         email: friend.email,
+        username: friend.username,
         avatar: friend.avatar
       },
       thoughts: formattedThoughts,
@@ -166,23 +167,31 @@ router.get('/:friendId', authenticateToken, async (req, res) => {
   }
 });
 
-// POST /suggested - Find users by email or phone number (for suggested friends)
+// POST /suggested - Find users by email, phone number, or username (for suggested friends)
 router.post('/suggested', authenticateToken, async (req, res) => {
   try {
     const currentUserId = req.user.userId;
-    const { emails = [], phoneNumbers = [] } = req.body;
+    const { emails = [], phoneNumbers = [], usernames = [] } = req.body;
 
-    if ((!emails || emails.length === 0) && (!phoneNumbers || phoneNumbers.length === 0)) {
-      return res.status(400).json({ error: 'No emails or phone numbers provided' });
+    if ((!emails || emails.length === 0) && (!phoneNumbers || phoneNumbers.length === 0) && (!usernames || usernames.length === 0)) {
+      return res.status(400).json({ error: 'No emails, phone numbers, or usernames provided' });
     }
 
-    let query = supabase.from('users').select('id, name, email, avatar, created_at');
-    if (emails.length > 0 && phoneNumbers.length > 0) {
-      query = query.or(`email.in.(${emails.map(e => `'${e}'`).join(',')}),phone.in.(${phoneNumbers.map(p => `'${p}'`).join(',')})`);
-    } else if (emails.length > 0) {
-      query = query.in('email', emails);
-    } else if (phoneNumbers.length > 0) {
-      query = query.in('phone', phoneNumbers);
+    let query = supabase.from('users').select('id, name, email, username, avatar, created_at');
+    const conditions = [];
+    
+    if (emails.length > 0) {
+      conditions.push(`email.in.(${emails.map(e => `'${e}'`).join(',')})`);
+    }
+    if (phoneNumbers.length > 0) {
+      conditions.push(`phone.in.(${phoneNumbers.map(p => `'${p}'`).join(',')})`);
+    }
+    if (usernames.length > 0) {
+      conditions.push(`username.in.(${usernames.map(u => `'${u}'`).join(',')})`);
+    }
+    
+    if (conditions.length > 0) {
+      query = query.or(conditions.join(','));
     }
 
     // Exclude current user
@@ -201,16 +210,27 @@ router.post('/suggested', authenticateToken, async (req, res) => {
   }
 });
 
-// POST /friends/request - Send a friend request by phone number or email
+// POST /friends/request - Send a friend request by phone number, email, or username
 router.post('/request', authenticateToken, async (req, res) => {
   try {
     const senderId = req.user.userId;
-    const { phone, email } = req.body;
-    if (!phone && !email) {
-      return res.status(400).json({ error: 'Phone number or email is required' });
+    const { phone, email, username } = req.body;
+    if (!phone && !email && !username) {
+      return res.status(400).json({ error: 'Phone number, email, or username is required' });
     }
     let recipient;
-    if (email) {
+    if (username) {
+      // Find recipient by username
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, username')
+        .eq('username', username)
+        .single();
+      if (error || !data) {
+        return res.status(404).json({ error: 'User with that username not found' });
+      }
+      recipient = data;
+    } else if (email) {
       // Find recipient by email
       const { data, error } = await supabase
         .from('users')

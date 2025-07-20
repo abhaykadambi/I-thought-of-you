@@ -206,6 +206,9 @@ export default function FriendProfileScreen({ route, navigation }) {
           </View>
         )}
         <Text style={styles.profileName}>{friend.name}</Text>
+        {friend.username && (
+          <Text style={styles.profileUsername}>@{friend.username}</Text>
+        )}
         <Text style={styles.profileStatus}>Friend</Text>
       </View>
 
@@ -406,6 +409,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontFamily: headerFontFamily,
     color: '#2c2c2c',
+    marginBottom: 8,
+  },
+  profileUsername: {
+    fontSize: 16,
+    color: '#4a7cff',
+    fontFamily: headerFontFamily,
     marginBottom: 8,
   },
   profileStatus: {

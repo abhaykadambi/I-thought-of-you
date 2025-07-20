@@ -144,6 +144,12 @@ export const authAPI = {
     }
     return await response.json();
   },
+
+  // Check username availability
+  checkUsername: async (username) => {
+    const response = await api.get(`/auth/check-username/${username}`);
+    return response.data;
+  },
 };
 
 // Thoughts API
@@ -195,9 +201,9 @@ export const friendsAPI = {
     return response.data;
   },
 
-  // Get suggested friends by phone numbers
-  getSuggested: async ({ phoneNumbers }) => {
-    const response = await api.post('/friends/suggested', { phoneNumbers });
+  // Get suggested friends by phone numbers, emails, or usernames
+  getSuggested: async ({ phoneNumbers = [], emails = [], usernames = [] }) => {
+    const response = await api.post('/friends/suggested', { phoneNumbers, emails, usernames });
     return response.data;
   },
 
@@ -213,11 +219,22 @@ export const friendsAPI = {
     return response.data;
   },
 
-  // Send a friend request by phone number or email
+  // Send a friend request by phone number, email, or username
   sendFriendRequest: async (contact) => {
     // Simple email regex
     const isEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contact);
-    const payload = isEmail ? { email: contact } : { phone: contact };
+    // Username regex (3-32 chars, letters, numbers, underscores)
+    const isUsername = /^[a-zA-Z0-9_]{3,32}$/.test(contact);
+    
+    let payload;
+    if (isEmail) {
+      payload = { email: contact };
+    } else if (isUsername) {
+      payload = { username: contact };
+    } else {
+      payload = { phone: contact };
+    }
+    
     const response = await api.post('/friends/request', payload);
     return response.data;
   },

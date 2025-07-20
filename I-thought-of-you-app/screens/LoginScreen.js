@@ -62,7 +62,7 @@ export default function LoginScreen({ navigation }) {
       </View>
       <TouchableOpacity 
         style={styles.backButton} 
-        onPress={() => navigation.navigate('Welcome')}
+        onPress={() => navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] })}
       >
         <Text style={styles.backButtonText}>Back to Welcome</Text>
       </TouchableOpacity>

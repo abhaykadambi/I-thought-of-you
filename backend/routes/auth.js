@@ -144,21 +144,27 @@ function formatPhone(phone) {
 // Register new user
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, name, phone } = req.body;
+    const { email, password, name, phone, username } = req.body;
 
-    if (!email || !password || !name || !phone) {
-      return res.status(400).json({ error: 'Email, password, name, and phone are required' });
+    if (!email || !password || !name || !phone || !username) {
+      return res.status(400).json({ error: 'Email, password, name, phone, and username are required' });
     }
 
-    // Check if user already exists (by email or phone)
+    // Validate username format
+    const usernameRegex = /^[a-zA-Z0-9_]{3,32}$/;
+    if (!usernameRegex.test(username)) {
+      return res.status(400).json({ error: 'Username must be 3-32 characters long and contain only letters, numbers, and underscores' });
+    }
+
+    // Check if user already exists (by email, phone, or username)
     const { data: existingUser, error: checkError } = await supabase
       .from('users')
       .select('id')
-      .or(`email.eq.${email},phone.eq.${phone}`)
+      .or(`email.eq.${email},phone.eq.${phone},username.eq.${username}`)
       .single();
 
     if (existingUser) {
-      return res.status(400).json({ error: 'User with this email or phone already exists' });
+      return res.status(400).json({ error: 'User with this email, phone, or username already exists' });
     }
 
     // Hash password
@@ -173,10 +179,11 @@ router.post('/register', async (req, res) => {
           password: hashedPassword,
           name,
           phone,
+          username,
           created_at: new Date().toISOString()
         }
       ])
-      .select('id, email, name, phone, created_at')
+      .select('id, email, name, phone, username, created_at')
       .single();
 
     if (error) {
@@ -199,6 +206,7 @@ router.post('/register', async (req, res) => {
         email: user.email,
         name: user.name,
         phone: user.phone,
+        username: user.username,
         avatar: user.avatar
       },
       token
@@ -222,7 +230,7 @@ router.post('/login', async (req, res) => {
     // Get user from database
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, password, name, avatar')
+      .select('id, email, password, name, username, avatar')
       .eq('email', email)
       .single();
 
@@ -251,6 +259,7 @@ router.post('/login', async (req, res) => {
         id: user.id,
         email: user.email,
         name: user.name,
+        username: user.username,
         avatar: user.avatar
       },
       token
@@ -267,7 +276,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
   try {
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, name, avatar, created_at')
+      .select('id, email, name, username, avatar, created_at')
       .eq('id', req.user.userId)
       .single();
 
@@ -642,6 +651,41 @@ router.post('/upload-avatar', authenticateToken, avatarUpload.single('avatar'), 
   } catch (error) {
     console.error('Avatar upload error:', error);
     res.status(500).json({ error: 'Failed to upload avatar' });
+  }
+});
+
+// GET /auth/check-username/:username - Check if username is available
+router.get('/check-username/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+
+    // Validate username format
+    const usernameRegex = /^[a-zA-Z0-9_]{3,32}$/;
+    if (!usernameRegex.test(username)) {
+      return res.status(400).json({ 
+        available: false, 
+        error: 'Username must be 3-32 characters long and contain only letters, numbers, and underscores' 
+      });
+    }
+
+    // Check if username exists
+    const { data: existingUser, error } = await supabase
+      .from('users')
+      .select('id')
+      .eq('username', username)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" error
+      console.error('Username check error:', error);
+      return res.status(500).json({ error: 'Failed to check username availability' });
+    }
+
+    const available = !existingUser;
+    res.json({ available });
+
+  } catch (error) {
+    console.error('Check username error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
