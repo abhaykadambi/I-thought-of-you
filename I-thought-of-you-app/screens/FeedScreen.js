@@ -149,6 +149,7 @@ export default function FeedScreen({ navigation }) {
       style={styles.thoughtCard}
       onPress={() => navigation.navigate('ThoughtDetailOverlay', { 
         thought: {
+          id: item.id,
           author: 'You',
           text: item.text,
           time: item.time,

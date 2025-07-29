@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Platform, FlatList, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Platform, FlatList, TextInput, Alert, ActivityIndicator, RefreshControl, ScrollView } from 'react-native';
 import { thoughtsAPI } from '../services/api';
 import { authAPI } from '../services/api';
 import * as ImagePicker from 'expo-image-picker';
@@ -59,6 +59,7 @@ export default function ProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const lastPinnedUpdate = useRef(Date.now());
 
   // Fetch profile and pinned thoughts in parallel
@@ -190,6 +191,21 @@ export default function ProfileScreen({ navigation }) {
     setEditMode(false);
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      // Refresh both profile and pinned thoughts in parallel
+      await Promise.all([
+        loadProfile(),
+        loadPinnedThoughts()
+      ]);
+    } catch (error) {
+      console.error('Error refreshing profile:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const renderPinnedThought = ({ item, index }) => (
     <TouchableOpacity
       style={styles.thoughtCard}
@@ -247,70 +263,87 @@ export default function ProfileScreen({ navigation }) {
           <Text style={styles.editIcon}>✏️</Text>
         </TouchableOpacity>
       )}
-      <View style={styles.profileSection}>
-        {editMode ? (
-          <>
-            <Image 
-              source={{ uri: editedAvatar || defaultAvatar }} 
-              style={styles.avatar}
-            />
-            <TouchableOpacity style={styles.avatarPickerButton} onPress={pickAvatarImage} disabled={uploading}>
-              <Text style={styles.avatarPickerText}>{uploading ? 'Uploading...' : 'Pick Profile Picture'}</Text>
-            </TouchableOpacity>
-            <TextInput
-              style={styles.nameInput}
-              value={editedName}
-              onChangeText={setEditedName}
-              placeholder="Your Name"
-              placeholderTextColor="#b0a99f"
-            />
-          </>
-        ) : (
-          <>
-            <Image 
-              source={{ uri: user?.avatar || defaultAvatar }} 
-              style={styles.avatar}
-            />
-            <Text style={styles.name}>{user?.name || 'No Name'}</Text>
-        {user?.username && (
-          <Text style={styles.username}>@{user.username}</Text>
-        )}
-          </>
-        )}
-      </View>
-      <Text style={styles.sectionTitle}>Pinned Thoughts</Text>
-      <View style={styles.card}>
-        {loading ? (
-          // Show 3 skeletons while loading
-          <>
-            <SkeletonPinnedThought />
-            <SkeletonPinnedThought />
-            <SkeletonPinnedThought />
-          </>
-        ) : pinnedThoughts.length === 0 ? (
-          <View style={styles.emptyPinnedContainer}>
-            <Text style={styles.emptyPinnedText}>No pinned thoughts. Pin something and come back!</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={pinnedThoughts}
-            keyExtractor={(item) => item.id}
-            renderItem={renderPinnedThought}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-            scrollEnabled={false}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollViewContent,
+          editMode && { paddingBottom: 120 } // Extra padding when in edit mode to show save button
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#4a7cff']}
+            tintColor="#4a7cff"
           />
-        )}
-      </View>
-      {editMode && (
-        <View style={styles.editActions}>
-          <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={uploading}>
-            <Text style={styles.saveButtonText}>Save</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.cancelButton} onPress={handleCancel} disabled={uploading}>
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.profileSection}>
+          {editMode ? (
+            <>
+              <Image 
+                source={{ uri: editedAvatar || defaultAvatar }} 
+                style={styles.avatar}
+              />
+              <TouchableOpacity style={styles.avatarPickerButton} onPress={pickAvatarImage} disabled={uploading}>
+                <Text style={styles.avatarPickerText}>{uploading ? 'Uploading...' : 'Pick Profile Picture'}</Text>
+              </TouchableOpacity>
+              <TextInput
+                style={styles.nameInput}
+                value={editedName}
+                onChangeText={setEditedName}
+                placeholder="Your Name"
+                placeholderTextColor="#b0a99f"
+              />
+            </>
+          ) : (
+            <>
+              <Image 
+                source={{ uri: user?.avatar || defaultAvatar }} 
+                style={styles.avatar}
+              />
+              <Text style={styles.name}>{user?.name || 'No Name'}</Text>
+          {user?.username && (
+            <Text style={styles.username}>@{user.username}</Text>
+          )}
+            </>
+          )}
         </View>
-      )}
+        <Text style={styles.sectionTitle}>Pinned Thoughts</Text>
+        <View style={styles.card}>
+          {loading ? (
+            // Show 3 skeletons while loading
+            <>
+              <SkeletonPinnedThought />
+              <SkeletonPinnedThought />
+              <SkeletonPinnedThought />
+            </>
+          ) : pinnedThoughts.length === 0 ? (
+            <View style={styles.emptyPinnedContainer}>
+              <Text style={styles.emptyPinnedText}>No pinned thoughts. Pin something and come back!</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={pinnedThoughts}
+              keyExtractor={(item) => item.id}
+              renderItem={renderPinnedThought}
+              ItemSeparatorComponent={() => <View style={styles.separator} />}
+              scrollEnabled={false}
+            />
+          )}
+        </View>
+        {editMode && (
+          <View style={styles.editActions}>
+            <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={uploading}>
+              <Text style={styles.saveButtonText}>Save</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cancelButton} onPress={handleCancel} disabled={uploading}>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -321,6 +354,12 @@ const styles = StyleSheet.create({
     backgroundColor: globalBackground,
     paddingTop: 40,
     paddingHorizontal: 0,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollViewContent: {
+    paddingBottom: 40,
   },
   settingsButton: {
     position: 'absolute',

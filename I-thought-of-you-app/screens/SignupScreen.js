@@ -17,11 +17,11 @@ export default function SignupScreen({ navigation }) {
   const [pendingSignup, setPendingSignup] = useState(false);
 
   const handleSignUp = async () => {
-    if (!email || !password || !name || !phone || !username) {
-      Alert.alert('Error', 'Please fill in all fields');
+    if (!email || !password || !name || !username) {
+      Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
-    if (!/^\d{8,}$/.test(phone)) {
+    if (phone && !/^\d{8,}$/.test(phone)) {
       Alert.alert('Error', 'Please enter a valid phone number (at least 8 digits, numbers only)');
       return;
     }
@@ -99,7 +99,7 @@ export default function SignupScreen({ navigation }) {
         />
         <TextInput
           style={styles.input}
-          placeholder="Phone Number"
+          placeholder="Phone Number (Optional)"
           value={phone}
           onChangeText={setPhone}
           keyboardType="phone-pad"

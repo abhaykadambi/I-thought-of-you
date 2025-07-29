@@ -6,25 +6,21 @@ const REACTION_EMOJIS = {
   sad: '😢',
   disgust: '🤢',
   laughing: '😂',
-  anger: '😠',
+  anger: '🤬',
   smirk: '😏',
 };
 
 export default function ReactionDisplay({ reactions, currentUserId }) {
   if (!reactions || reactions.length === 0) return null;
 
-  // Group reactions by type
-  const reactionCounts = reactions.reduce((acc, reaction) => {
-    acc[reaction.reaction_type] = (acc[reaction.reaction_type] || 0) + 1;
-    return acc;
-  }, {});
+  // Get unique reaction types (no duplicates)
+  const uniqueReactions = [...new Set(reactions.map(r => r.reaction_type))];
 
   return (
     <View style={styles.container}>
-      {Object.entries(reactionCounts).map(([type, count]) => (
+      {uniqueReactions.map((type) => (
         <View key={type} style={styles.reactionItem}>
           <Text style={styles.emoji}>{REACTION_EMOJIS[type]}</Text>
-          <Text style={styles.count}>{count}</Text>
         </View>
       ))}
     </View>
@@ -36,23 +32,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginTop: 8,
-    gap: 8,
+    gap: 6,
   },
   reactionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#f0f0f0',
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 16,
   },
   emoji: {
-    fontSize: 16,
-    marginRight: 4,
-  },
-  count: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: 'bold',
+    fontSize: 20,
   },
 }); 

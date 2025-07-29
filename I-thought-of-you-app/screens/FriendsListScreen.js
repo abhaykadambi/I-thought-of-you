@@ -224,7 +224,6 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
                 )}
                 <Text style={styles.requestText}>
                   {item.sender?.name || 'Unknown User'}
-                  {item.sender?.phone ? ` (${item.sender.phone})` : ''}
                 </Text>
               </View>
               <View style={styles.buttonRow}>

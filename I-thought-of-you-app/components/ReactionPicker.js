@@ -6,7 +6,7 @@ const REACTIONS = [
   { type: 'sad', emoji: '😢', label: 'Sad' },
   { type: 'disgust', emoji: '🤢', label: 'Disgust' },
   { type: 'laughing', emoji: '😂', label: 'Laughing' },
-  { type: 'anger', emoji: '😠', label: 'Anger' },
+  { type: 'anger', emoji: '🤬', label: 'Anger' },
   { type: 'smirk', emoji: '😏', label: 'Smirk' },
 ];
 

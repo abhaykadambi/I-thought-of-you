@@ -18,8 +18,12 @@
       "bundleIdentifier": "com.ithoughtofyou.app",
       "infoPlist": {
         "UIBackgroundModes": [
+          "remote-notification",
           "remote-notification"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSContactsUsageDescription": "This app uses your contacts to help you find and connect with friends who are also using the app. We only access contacts to suggest friends and do not store or share your contact information.",
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to allow you to select and upload profile pictures. We only access photos that you specifically choose to upload."
       }
     },
     "android": {

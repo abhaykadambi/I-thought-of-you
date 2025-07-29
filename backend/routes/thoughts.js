@@ -395,6 +395,8 @@ router.get('/:thoughtId/reactions', authenticateToken, async (req, res) => {
     const { thoughtId } = req.params;
     const currentUserId = req.user.userId;
 
+    console.log('Getting reactions for thought:', thoughtId, 'by user:', currentUserId);
+
     // Verify user has access to this thought
     const { data: thought, error: thoughtError } = await supabase
       .from('thoughts')
@@ -403,10 +405,14 @@ router.get('/:thoughtId/reactions', authenticateToken, async (req, res) => {
       .single();
 
     if (thoughtError || !thought) {
+      console.log('Thought not found:', thoughtId, 'Error:', thoughtError);
       return res.status(404).json({ error: 'Thought not found' });
     }
 
+    console.log('Found thought:', thought);
+
     if (thought.sender_id !== currentUserId && thought.recipient_id !== currentUserId) {
+      console.log('Access denied for thought:', thoughtId);
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -427,6 +433,7 @@ router.get('/:thoughtId/reactions', authenticateToken, async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch reactions' });
     }
 
+    console.log('Reactions found:', reactions);
     res.json({ reactions: reactions || [] });
   } catch (error) {
     console.error('Get reactions error:', error);

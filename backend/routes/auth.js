@@ -146,8 +146,8 @@ router.post('/register', async (req, res) => {
   try {
     const { email, password, name, phone, username } = req.body;
 
-    if (!email || !password || !name || !phone || !username) {
-      return res.status(400).json({ error: 'Email, password, name, phone, and username are required' });
+    if (!email || !password || !name || !username) {
+      return res.status(400).json({ error: 'Email, password, name, and username are required' });
     }
 
     // Validate username format
@@ -157,14 +157,32 @@ router.post('/register', async (req, res) => {
     }
 
     // Check if user already exists (by email, phone, or username)
-    const { data: existingUser, error: checkError } = await supabase
-      .from('users')
-      .select('id')
-      .or(`email.eq.${email},phone.eq.${phone},username.eq.${username}`)
-      .single();
+    let existingUser, checkError;
+    if (phone) {
+      // If phone is provided, check for conflicts with email, phone, or username
+      const result = await supabase
+        .from('users')
+        .select('id')
+        .or(`email.eq.${email},phone.eq.${phone},username.eq.${username}`)
+        .single();
+      existingUser = result.data;
+      checkError = result.error;
+    } else {
+      // If phone is not provided, only check for email and username conflicts
+      const result = await supabase
+        .from('users')
+        .select('id')
+        .or(`email.eq.${email},username.eq.${username}`)
+        .single();
+      existingUser = result.data;
+      checkError = result.error;
+    }
 
     if (existingUser) {
-      return res.status(400).json({ error: 'User with this email, phone, or username already exists' });
+      const conflictMessage = phone 
+        ? 'User with this email, phone, or username already exists'
+        : 'User with this email or username already exists';
+      return res.status(400).json({ error: conflictMessage });
     }
 
     // Hash password

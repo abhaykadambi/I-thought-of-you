@@ -1,0 +1,26 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Global App Availability Regions",
+        "description": "Geographic regions where I-thought-of-you app is available"
+      },
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [-180, 90],
+              [180, 90],
+              [180, -90],
+              [-180, -90],
+              [-180, 90]
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+} 

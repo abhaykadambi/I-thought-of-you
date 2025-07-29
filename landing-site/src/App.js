@@ -168,12 +168,12 @@ function Privacy() {
       <Title>Privacy Policy for I Thought of You</Title>
       <Subtitle>Effective Date: July 14, 2025</Subtitle>
       <Description style={{textAlign:'left', maxWidth: 600, margin: '0 auto'}}>
-        <b>At I Thought of You, we value your privacy and are committed to protecting your personal data. This policy outlines what data we collect, how it’s used, and your rights as a user.</b>
+        <b>At I Thought of You, we value your privacy and are committed to protecting your personal data. This policy outlines what data we collect, how it's used, and your rights as a user.</b>
         <br /><br />
         <b>1. Information We Collect</b><br />
         <ul style={{marginTop: 8, marginBottom: 16}}>
           <li><b>Account Information:</b> Your name, email, or phone number when you register.</li>
-          <li><b>Friend Connections:</b> IDs of friends you’ve added to enable sending/receiving thoughts.</li>
+          <li><b>Friend Connections:</b> IDs of friends you've added to enable sending/receiving thoughts.</li>
           <li><b>User Content:</b> Thoughts you send or receive are stored securely and privately.</li>
           <li><b>Device Data:</b> Basic usage analytics (e.g., device type, OS) to improve performance.</li>
         </ul>
@@ -215,6 +215,33 @@ function Privacy() {
   );
 }
 
+function Support() {
+  return (
+    <Container>
+      <Title>Support</Title>
+      <Subtitle>We're here to help</Subtitle>
+      <Description style={{textAlign:'left', maxWidth: 600, margin: '0 auto'}}>
+        <b>Need help with I Thought of You?</b><br /><br />
+        We're committed to providing excellent support for all our users. If you have any questions, concerns, or need assistance with the app, please don't hesitate to reach out to us.<br /><br />
+        <b>Contact Information:</b><br />
+        <span role="img" aria-label="email">📧</span> <a href="mailto:ithoughtofyouapp@gmail.com" style={{color:'#4a7cff'}}>ithoughtofyouapp@gmail.com</a><br /><br />
+        <b>What we can help with:</b><br />
+        <ul style={{marginTop: 8, marginBottom: 16}}>
+          <li>Account issues and troubleshooting</li>
+          <li>App functionality questions</li>
+          <li>Privacy and security concerns</li>
+          <li>Feature requests and feedback</li>
+          <li>Technical support</li>
+        </ul>
+        <b>Response Time:</b><br />
+        We typically respond to support inquiries within 24-48 hours during business days.<br /><br />
+        <b>Before contacting us:</b><br />
+        You might find answers to common questions in our <a href="/terms" style={{color:'#4a7cff'}}>Terms of Service</a> or <a href="/privacy" style={{color:'#4a7cff'}}>Privacy Policy</a> pages.
+      </Description>
+    </Container>
+  );
+}
+
 function App() {
   return (
     <Router>
@@ -225,12 +252,14 @@ function App() {
           <NavLink to="/">Home</NavLink>
           <NavLink to="/terms">Terms of Service</NavLink>
           <NavLink to="/privacy">Privacy Policy</NavLink>
+          <NavLink to="/support">Support</NavLink>
         </NavLinks>
       </Navbar>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
+        <Route path="/support" element={<Support />} />
       </Routes>
     </Router>
   );

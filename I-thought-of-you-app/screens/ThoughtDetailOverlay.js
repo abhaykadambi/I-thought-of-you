@@ -16,6 +16,9 @@ export default function ThoughtDetailOverlay({ route, navigation }) {
   const [loadingReactions, setLoadingReactions] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
 
+  // Debug: Log the thought object
+  console.log('ThoughtDetailOverlay received thought:', thought);
+
   // Check if thought is already pinned when component mounts (only if not provided)
   useEffect(() => {
     if (initialPinStatus === undefined) {
@@ -37,6 +40,16 @@ export default function ThoughtDetailOverlay({ route, navigation }) {
   const loadReactions = async () => {
     try {
       setLoadingReactions(true);
+      console.log('Loading reactions for thought ID:', thought.id);
+      
+      // Check if thought ID exists
+      if (!thought.id) {
+        console.log('No thought ID found, skipping reactions load');
+        setReactions([]);
+        setUserReaction(null);
+        return;
+      }
+      
       const { reactions: reactionData } = await thoughtsAPI.getReactions(thought.id);
       setReactions(reactionData);
       
@@ -46,6 +59,9 @@ export default function ThoughtDetailOverlay({ route, navigation }) {
       setUserReaction(userReactionData?.reaction_type || null);
     } catch (error) {
       console.error('Error loading reactions:', error);
+      // Don't show error to user, just set empty reactions
+      setReactions([]);
+      setUserReaction(null);
     } finally {
       setLoadingReactions(false);
     }

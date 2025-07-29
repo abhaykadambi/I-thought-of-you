@@ -6,6 +6,14 @@ const globalBackground = '#f8f5ee';
 const cardBackground = '#fff9ed';
 const headerFontFamily = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
+// Helper function to determine font size based on name length
+function getTabFontSize(name) {
+  if (!name) return 16;
+  if (name.length <= 12) return 16;
+  if (name.length <= 18) return 14;
+  return 12;
+}
+
 export default function FriendProfileScreen({ route, navigation }) {
   const { friend } = route.params;
   const [thoughtsFromFriend, setThoughtsFromFriend] = useState([]);
@@ -240,13 +248,13 @@ export default function FriendProfileScreen({ route, navigation }) {
           style={[styles.tabButton, activeTab === 'from' && styles.activeTabButton]}
           onPress={() => setActiveTab('from')}
         >
-          <Text style={[styles.tabText, activeTab === 'from' && styles.activeTabText]}>from {friend.name}</Text>
+          <Text style={[styles.tabText, activeTab === 'from' && styles.activeTabText, { fontSize: getTabFontSize(friend.name) }]}>from {friend.name}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tabButton, activeTab === 'to' && styles.activeTabButton]}
           onPress={() => setActiveTab('to')}
         >
-          <Text style={[styles.tabText, activeTab === 'to' && styles.activeTabText]}>to {friend.name}</Text>
+          <Text style={[styles.tabText, activeTab === 'to' && styles.activeTabText, { fontSize: getTabFontSize(friend.name) }]}>to {friend.name}</Text>
         </TouchableOpacity>
       </View>
       <View style={styles.recentThoughtsCard}>
