@@ -158,8 +158,8 @@ router.post('/register', async (req, res) => {
 
     // Check if user already exists (by email, phone, or username)
     let existingUser, checkError;
-    if (phone) {
-      // If phone is provided, check for conflicts with email, phone, or username
+    if (phone && phone.trim() !== '') {
+      // If phone is provided and not empty, check for conflicts with email, phone, or username
       const result = await supabase
         .from('users')
         .select('id')
@@ -168,7 +168,7 @@ router.post('/register', async (req, res) => {
       existingUser = result.data;
       checkError = result.error;
     } else {
-      // If phone is not provided, only check for email and username conflicts
+      // If phone is not provided or empty, only check for email and username conflicts
       const result = await supabase
         .from('users')
         .select('id')
@@ -179,7 +179,7 @@ router.post('/register', async (req, res) => {
     }
 
     if (existingUser) {
-      const conflictMessage = phone 
+      const conflictMessage = (phone && phone.trim() !== '') 
         ? 'User with this email, phone, or username already exists'
         : 'User with this email or username already exists';
       return res.status(400).json({ error: conflictMessage });
@@ -188,19 +188,24 @@ router.post('/register', async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Prepare user data, only include phone if it's not empty
+    const userData = {
+      email,
+      password: hashedPassword,
+      name,
+      username,
+      created_at: new Date().toISOString()
+    };
+    
+    // Only add phone field if it's not empty
+    if (phone && phone.trim() !== '') {
+      userData.phone = phone;
+    }
+
     // Create user
     const { data: user, error } = await supabase
       .from('users')
-      .insert([
-        {
-          email,
-          password: hashedPassword,
-          name,
-          phone,
-          username,
-          created_at: new Date().toISOString()
-        }
-      ])
+      .insert([userData])
       .select('id, email, name, phone, username, created_at')
       .single();
 
