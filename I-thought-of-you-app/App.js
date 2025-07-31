@@ -22,6 +22,7 @@ import SignupScreen from './screens/SignupScreen';
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
 import EnterOTPAndResetScreen from './screens/EnterOTPAndResetScreen';
 import ResetPasswordScreen from './screens/ResetPasswordScreen';
+import AdminModerationScreen from './screens/AdminModerationScreen';
 import { authAPI } from './services/api';
 import notificationService from './services/notificationService';
 import * as Notifications from 'expo-notifications';
@@ -185,6 +186,7 @@ export default function App() {
         <Stack.Screen name="ThoughtDetailOverlay" component={ThoughtDetailOverlay} options={{ presentation: 'modal' }} />
         <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
         <Stack.Screen name="AddFriendOverlay" component={AddFriendOverlay} options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="AdminModeration" component={AdminModerationScreen} />
       </Stack.Navigator>
       <StatusBar style="dark" backgroundColor={globalBackground} />
     </NavigationContainer>

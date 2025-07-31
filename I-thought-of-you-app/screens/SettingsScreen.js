@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert } from 'react-native';
-import { authAPI } from '../services/api';
+import { authAPI, moderationAPI } from '../services/api';
 import notificationService from '../services/notificationService';
 
 const globalBackground = '#f8f5ee';
@@ -9,15 +9,18 @@ const headerFontFamily = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
 export default function SettingsScreen({ navigation }) {
   const [notificationStatus, setNotificationStatus] = useState('unknown');
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     checkNotificationStatus();
+    checkAdminStatus();
   }, []);
 
   // Refresh notification status when screen comes into focus
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       checkNotificationStatus();
+      checkAdminStatus();
     });
 
     return unsubscribe;
@@ -26,6 +29,16 @@ export default function SettingsScreen({ navigation }) {
   const checkNotificationStatus = async () => {
     const status = await notificationService.checkPermissionStatus();
     setNotificationStatus(status);
+  };
+
+  const checkAdminStatus = async () => {
+    try {
+      // Try to access admin dashboard - if successful, user is admin
+      await moderationAPI.getDashboard();
+      setIsAdmin(true);
+    } catch (error) {
+      setIsAdmin(false);
+    }
   };
 
   const handleLogout = () => {
@@ -97,6 +110,21 @@ export default function SettingsScreen({ navigation }) {
           <Text style={styles.settingText}>Privacy</Text>
           <Text style={styles.settingArrow}>→</Text>
         </TouchableOpacity>
+        {isAdmin && (
+          <>
+            <View style={styles.separator} />
+            <TouchableOpacity 
+              style={styles.settingRow} 
+              onPress={() => navigation.navigate('AdminModeration')}
+            >
+              <View style={styles.settingContent}>
+                <Text style={[styles.settingText, styles.adminText]}>Admin Dashboard</Text>
+                <Text style={styles.adminSubtext}>Moderate content and manage reports</Text>
+              </View>
+              <Text style={styles.settingArrow}>→</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <Text style={styles.logoutButtonText}>Log Out</Text>
@@ -165,6 +193,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: headerFontFamily,
     color: '#2c2c2c',
+  },
+  adminText: {
+    color: '#3498db',
+    fontWeight: '600',
+  },
+  adminSubtext: {
+    fontSize: 12,
+    color: '#7f8c8d',
+    marginTop: 2,
+    fontFamily: headerFontFamily,
   },
   settingArrow: {
     fontSize: 18,
