@@ -7,6 +7,7 @@ const thoughtsRoutes = require('./routes/thoughts');
 const friendsRoutes = require('./routes/friends');
 const settingsRoutes = require('./routes/settings');
 const notificationsRoutes = require('./routes/notifications');
+const moderationRoutes = require('./routes/moderation');
 const redisService = require('./services/redisService');
 
 const app = express();
@@ -60,6 +61,7 @@ app.use('/api/thoughts', thoughtsRoutes);
 app.use('/api/friends', friendsRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/moderation', moderationRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

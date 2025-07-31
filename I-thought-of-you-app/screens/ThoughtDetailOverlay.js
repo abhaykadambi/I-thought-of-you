@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert, Image } from
 import { thoughtsAPI, authAPI } from '../services/api';
 import ReactionPicker from '../components/ReactionPicker';
 import ReactionDisplay from '../components/ReactionDisplay';
+import ThoughtOptionsOverlay from './ThoughtOptionsOverlay';
+import ReportContentOverlay from './ReportContentOverlay';
 
 const globalBackground = '#f8f5ee';
 const cardBackground = '#fff9ed';
@@ -15,6 +17,8 @@ export default function ThoughtDetailOverlay({ route, navigation }) {
   const [userReaction, setUserReaction] = useState(null);
   const [loadingReactions, setLoadingReactions] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
+  const [showOptions, setShowOptions] = useState(false);
+  const [showReport, setShowReport] = useState(false);
 
   // Debug: Log the thought object
   console.log('ThoughtDetailOverlay received thought:', thought);
@@ -152,6 +156,15 @@ export default function ThoughtDetailOverlay({ route, navigation }) {
       <TouchableOpacity style={styles.closeButton} onPress={() => navigation.goBack()}>
         <Text style={styles.closeIcon}>←</Text>
       </TouchableOpacity>
+      
+      {/* Three dots menu button */}
+      <TouchableOpacity 
+        style={styles.optionsButton} 
+        onPress={() => setShowOptions(true)}
+      >
+        <Text style={styles.optionsIcon}>⋯</Text>
+      </TouchableOpacity>
+      
       <View style={styles.card}>
         <View style={styles.authorSection}>
           {thought.authorAvatar && thought.author !== 'You' ? (
@@ -203,6 +216,27 @@ export default function ThoughtDetailOverlay({ route, navigation }) {
           </Text>
         </TouchableOpacity>
       )}
+
+      {/* Options and Report Overlays */}
+      <ThoughtOptionsOverlay
+        visible={showOptions}
+        onClose={() => setShowOptions(false)}
+        thought={thought}
+        isOwnThought={thought.author === 'You'}
+        onThoughtDeleted={() => {
+          navigation.goBack();
+        }}
+        onReportThought={() => setShowReport(true)}
+      />
+
+      <ReportContentOverlay
+        visible={showReport}
+        onClose={() => setShowReport(false)}
+        thought={thought}
+        onReportSubmitted={() => {
+          // Optionally refresh or show success message
+        }}
+      />
     </View>
   );
 }
@@ -230,6 +264,25 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   closeIcon: {
+    fontSize: 24,
+    color: '#4a7cff',
+    fontWeight: 'bold',
+  },
+  optionsButton: {
+    position: 'absolute',
+    top: 48,
+    right: 24,
+    zIndex: 10,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  optionsIcon: {
     fontSize: 24,
     color: '#4a7cff',
     fontWeight: 'bold',

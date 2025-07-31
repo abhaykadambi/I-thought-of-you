@@ -524,4 +524,44 @@ router.delete('/:thoughtId/reactions', authenticateToken, async (req, res) => {
   }
 });
 
+// DELETE /thoughts/:thoughtId - Delete a thought
+router.delete('/:thoughtId', authenticateToken, async (req, res) => {
+  try {
+    const { thoughtId } = req.params;
+    const currentUserId = req.user.userId;
+
+    // Get the thought to verify ownership
+    const { data: thought, error: thoughtError } = await supabase
+      .from('thoughts')
+      .select('id, sender_id, recipient_id')
+      .eq('id', thoughtId)
+      .single();
+
+    if (thoughtError || !thought) {
+      return res.status(404).json({ error: 'Thought not found' });
+    }
+
+    // Only the sender can delete their own thoughts
+    if (thought.sender_id !== currentUserId) {
+      return res.status(403).json({ error: 'You can only delete your own thoughts' });
+    }
+
+    // Delete the thought (cascade will handle reactions and other related data)
+    const { error: deleteError } = await supabase
+      .from('thoughts')
+      .delete()
+      .eq('id', thoughtId);
+
+    if (deleteError) {
+      console.error('Error deleting thought:', deleteError);
+      return res.status(500).json({ error: 'Failed to delete thought' });
+    }
+
+    res.json({ message: 'Thought deleted successfully' });
+  } catch (error) {
+    console.error('Delete thought error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router; 

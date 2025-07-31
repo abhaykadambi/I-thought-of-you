@@ -203,6 +203,12 @@ export const thoughtsAPI = {
     const response = await api.delete(`/thoughts/${thoughtId}/reactions`);
     return response.data;
   },
+
+  // Delete a thought
+  delete: async (thoughtId) => {
+    const response = await api.delete(`/thoughts/${thoughtId}`);
+    return response.data;
+  },
 };
 
 // Friends API
@@ -319,6 +325,30 @@ export const settingsAPI = {
     const response = await api.post('/settings/test-notification');
     return response.data;
   },
+};
+
+// Moderation API
+export const moderationAPI = {
+  // Report content
+  reportContent: (data) => api.post('/moderation/report', data),
+  
+  // Block user
+  blockUser: (data) => api.post('/moderation/block', data),
+  
+  // Unblock user
+  unblockUser: (userId) => api.delete(`/moderation/block/${userId}`),
+  
+  // Get blocked users
+  getBlockedUsers: () => api.get('/moderation/blocked'),
+  
+  // Admin: Get reports
+  getReports: (params) => api.get('/moderation/reports', { params }),
+  
+  // Admin: Update report
+  updateReport: (reportId, data) => api.put(`/moderation/reports/${reportId}`, data),
+  
+  // Admin: Get dashboard
+  getDashboard: () => api.get('/moderation/dashboard'),
 };
 
 export default api; 
