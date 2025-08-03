@@ -173,41 +173,133 @@ router.post('/suggested', authenticateToken, async (req, res) => {
     const currentUserId = req.user.userId;
     const { emails = [], phoneNumbers = [], usernames = [] } = req.body;
 
+    console.log('Suggested friends request:', { 
+      emailsCount: emails.length, 
+      phoneNumbersCount: phoneNumbers.length, 
+      usernamesCount: usernames.length 
+    });
+
     if ((!emails || emails.length === 0) && (!phoneNumbers || phoneNumbers.length === 0) && (!usernames || usernames.length === 0)) {
       return res.status(400).json({ error: 'No emails, phone numbers, or usernames provided' });
     }
 
-    let query = supabase.from('users').select('id, name, email, username, avatar, created_at');
-    const conditions = [];
-    
+    let allUsers = new Map(); // Use Map to avoid duplicates
+
+    // Query by emails
     if (emails.length > 0) {
-      conditions.push(`email.in.(${emails.map(e => `'${e}'`).join(',')})`);
+      const { data: emailUsers, error: emailError } = await supabase
+        .from('users')
+        .select('id, name, email, username, avatar, created_at')
+        .in('email', emails)
+        .neq('id', currentUserId);
+      
+      if (emailError) {
+        console.error('Email query error:', emailError);
+      } else {
+        emailUsers?.forEach(user => allUsers.set(user.id, user));
+      }
     }
+
+    // Query by phone numbers (simple approach like original)
     if (phoneNumbers.length > 0) {
-      conditions.push(`phone.in.(${phoneNumbers.map(p => `'${p}'`).join(',')})`);
+      const { data: phoneUsers, error: phoneError } = await supabase
+        .from('users')
+        .select('id, name, email, username, avatar, created_at')
+        .in('phone', phoneNumbers)
+        .neq('id', currentUserId);
+      
+      if (phoneError) {
+        console.error('Phone query error:', phoneError);
+      } else {
+        phoneUsers?.forEach(user => allUsers.set(user.id, user));
+      }
     }
+
+    // Query by usernames
     if (usernames.length > 0) {
-      // Normalize usernames to lowercase for case-insensitive lookup
       const normalizedUsernames = usernames.map(u => u.toLowerCase());
-      conditions.push(`username.in.(${normalizedUsernames.map(u => `'${u}'`).join(',')})`);
-    }
-    
-    if (conditions.length > 0) {
-      query = query.or(conditions.join(','));
+      const { data: usernameUsers, error: usernameError } = await supabase
+        .from('users')
+        .select('id, name, email, username, avatar, created_at')
+        .in('username', normalizedUsernames)
+        .neq('id', currentUserId);
+      
+      if (usernameError) {
+        console.error('Username query error:', usernameError);
+      } else {
+        usernameUsers?.forEach(user => allUsers.set(user.id, user));
+      }
     }
 
-    // Exclude current user
-    query = query.neq('id', currentUserId);
-
-    const { data: users, error } = await query;
-    if (error) {
-      console.error('Error fetching suggested friends:', error);
-      return res.status(500).json({ error: 'Failed to fetch suggested friends' });
-    }
+    const users = Array.from(allUsers.values());
+    console.log('Found suggested friends:', users.length);
 
     res.json({ users });
   } catch (error) {
     console.error('Suggested friends error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /friends/debug-suggested - Debug endpoint to check what's happening
+router.get('/debug-suggested', authenticateToken, async (req, res) => {
+  try {
+    const currentUserId = req.user.userId;
+    
+    // Get total user count
+    const { count: totalUsers } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true });
+    
+    // Get users with phone numbers
+    const { data: usersWithPhone, count: usersWithPhoneCount } = await supabase
+      .from('users')
+      .select('id, phone', { count: 'exact' })
+      .not('phone', 'is', null);
+    
+    // Get sample phone numbers
+    const samplePhones = usersWithPhone?.slice(0, 5).map(u => u.phone) || [];
+    
+    res.json({
+      totalUsers,
+      usersWithPhoneCount,
+      samplePhones,
+      currentUserId
+    });
+  } catch (error) {
+    console.error('Debug suggested friends error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /friends/search - Search users by username
+router.get('/search', authenticateToken, async (req, res) => {
+  try {
+    const currentUserId = req.user.userId;
+    const { query } = req.query;
+    
+    if (!query || query.trim().length < 2) {
+      return res.json({ users: [] });
+    }
+    
+    const searchQuery = query.toLowerCase().trim();
+    
+    // Search for users by username (case-insensitive)
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('id, name, username, avatar, created_at')
+      .ilike('username', `%${searchQuery}%`)
+      .neq('id', currentUserId)
+      .limit(10); // Limit results for performance
+    
+    if (error) {
+      console.error('User search error:', error);
+      return res.status(500).json({ error: 'Failed to search users' });
+    }
+    
+    res.json({ users: users || [] });
+  } catch (error) {
+    console.error('User search error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

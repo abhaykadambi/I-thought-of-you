@@ -90,34 +90,66 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
   const loadSuggestedFriends = async () => {
     try {
       setLoadingSuggested(true);
+      
+      // Request contacts permission
       const { status } = await Contacts.requestPermissionsAsync();
+      console.log('Contacts permission status:', status);
+      
       if (status !== 'granted') {
+        console.log('Contacts permission denied');
         setSuggestedFriends([]);
         return;
       }
-      const { data } = await Contacts.getContactsAsync({ fields: [Contacts.Fields.PhoneNumbers] });
+      
+      // Get contacts with phone numbers - simpler approach
+      const { data } = await Contacts.getContactsAsync({ 
+        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+        pageSize: 1000
+      });
+      
+      console.log('Contacts loaded:', data?.length || 0);
+      
       if (!data || data.length === 0) {
+        console.log('No contacts found');
         setSuggestedFriends([]);
         return;
       }
-      // Collect all phone numbers, normalize (remove spaces, dashes, parens)
+      
+      // Simple phone number extraction (like the original working version)
       const phoneNumbers = data
         .flatMap(contact => (contact.phoneNumbers || []).map(p => p.number))
-        .map(num => num.replace(/[^\d]/g, ''))
+        .map(num => num.replace(/[^\d]/g, '')) // Just digits like original
         .filter(num => num.length >= 8);
+      
+      console.log('Phone numbers found:', phoneNumbers.length);
+      
       if (phoneNumbers.length === 0) {
+        console.log('No valid phone numbers found');
         setSuggestedFriends([]);
         return;
       }
-      // Remove phone numbers of existing friends
-      const friendPhones = friends.map(f => (f.phone ? f.phone.replace(/[^\d]/g, '') : null)).filter(Boolean);
-      const uniquePhones = phoneNumbers.filter(num => !friendPhones.includes(num));
-      if (uniquePhones.length === 0) {
+      
+      // Remove duplicates
+      const uniquePhones = [...new Set(phoneNumbers)];
+      console.log('Unique phone numbers:', uniquePhones.length);
+      
+      // Remove phone numbers of existing friends (simple approach)
+      const friendPhones = friends.map(f => f.phone ? f.phone.replace(/[^\d]/g, '') : null).filter(Boolean);
+      const filteredPhones = uniquePhones.filter(num => !friendPhones.includes(num));
+      
+      console.log('Phone numbers after filtering friends:', filteredPhones.length);
+      
+      if (filteredPhones.length === 0) {
+        console.log('No phone numbers left after filtering');
         setSuggestedFriends([]);
         return;
       }
+      
       // Query backend for suggested friends
-      const response = await friendsAPI.getSuggested({ phoneNumbers: uniquePhones });
+      console.log('Sending phone numbers to backend:', filteredPhones.slice(0, 5));
+      const response = await friendsAPI.getSuggested({ phoneNumbers: filteredPhones });
+      console.log('Backend response users:', response.users?.length || 0);
+      
       setSuggestedFriends(response.users || []);
     } catch (error) {
       console.error('Error loading suggested friends:', error);
@@ -200,6 +232,33 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <TouchableOpacity style={styles.headerInviteButton} onPress={() => navigation.navigate('AddFriendOverlay')}>
             <Text style={styles.headerInviteButtonText}>+</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.headerInviteButton, { backgroundColor: '#e74c3c' }]} 
+            onPress={async () => {
+              try {
+                // Test contacts access
+                const { status } = await Contacts.requestPermissionsAsync();
+                const { data } = await Contacts.getContactsAsync({ 
+                  fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+                  pageSize: 10
+                });
+                
+                const debug = await friendsAPI.debugSuggested();
+                Alert.alert('Debug Info', 
+                  `Contacts Permission: ${status}\n` +
+                  `Contacts Found: ${data?.length || 0}\n` +
+                  `Total Users: ${debug.totalUsers}\n` +
+                  `Users with Phone: ${debug.usersWithPhoneCount}\n` +
+                  `Sample Phones: ${debug.samplePhones.join(', ')}\n` +
+                  `Current User ID: ${debug.currentUserId}`
+                );
+              } catch (error) {
+                Alert.alert('Debug Error', error.message);
+              }
+            }}
+          >
+            <Text style={styles.headerInviteButtonText}>🔍</Text>
           </TouchableOpacity>
         </View>
       </View>

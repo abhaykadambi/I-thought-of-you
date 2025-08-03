@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert, TextInput, Share, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert, TextInput, Share, ActivityIndicator, FlatList, Image } from 'react-native';
 import { friendsAPI } from '../services/api';
 
 const globalBackground = '#f8f5ee';
@@ -11,6 +11,47 @@ export default function AddFriendOverlay({ navigation }) {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
   const [sendSuccess, setSendSuccess] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [searchTimeout, setSearchTimeout] = useState(null);
+
+  // Search users as they type
+  const handleSearch = async (text) => {
+    setContact(text);
+    
+    // Clear previous timeout
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+    
+    // Clear results if input is too short
+    if (!text || text.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    
+    // Debounce search to avoid too many API calls
+    const timeout = setTimeout(async () => {
+      try {
+        setSearching(true);
+        const response = await friendsAPI.searchUsers(text.trim());
+        setSearchResults(response.users || []);
+      } catch (error) {
+        console.error('Search error:', error);
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300); // 300ms delay
+    
+    setSearchTimeout(timeout);
+  };
+
+  // Select a user from search results
+  const selectUser = (user) => {
+    setContact(user.username);
+    setSearchResults([]);
+  };
 
   const handleSendRequest = async () => {
     setSendError('');
@@ -71,7 +112,7 @@ export default function AddFriendOverlay({ navigation }) {
             style={styles.input}
             placeholder="Add by username, email, or phone"
             value={contact}
-            onChangeText={setContact}
+            onChangeText={handleSearch}
             keyboardType="default"
             autoCapitalize="none"
             autoCorrect={false}
@@ -82,6 +123,47 @@ export default function AddFriendOverlay({ navigation }) {
             <Text style={styles.addButtonText}>{sending ? '...' : 'Add'}</Text>
           </TouchableOpacity>
         </View>
+        
+        {/* Search Results */}
+        {searchResults.length > 0 && (
+          <View style={styles.searchResultsContainer}>
+            <Text style={styles.searchResultsTitle}>Found Users:</Text>
+            <FlatList
+              data={searchResults}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={styles.searchResultItem}
+                  onPress={() => selectUser(item)}
+                >
+                  {item.avatar ? (
+                    <Image source={{ uri: item.avatar }} style={styles.searchResultAvatar} />
+                  ) : (
+                    <View style={styles.searchResultAvatarPlaceholder}>
+                      <Text style={styles.searchResultAvatarText}>
+                        {item.name.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.searchResultInfo}>
+                    <Text style={styles.searchResultName}>{item.name}</Text>
+                    <Text style={styles.searchResultUsername}>@{item.username}</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+              style={styles.searchResultsList}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+        )}
+        
+        {/* Search Loading Indicator */}
+        {searching && (
+          <View style={styles.searchLoadingContainer}>
+            <ActivityIndicator size="small" color="#4a7cff" />
+            <Text style={styles.searchLoadingText}>Searching...</Text>
+          </View>
+        )}
         {!!sendError && <Text style={styles.errorText}>{sendError}</Text>}
         {!!sendSuccess && <Text style={styles.successText}>{sendSuccess}</Text>}
         <TouchableOpacity style={styles.inviteButton} onPress={handleInviteFriend}>
@@ -198,6 +280,79 @@ const styles = StyleSheet.create({
     color: '#4a7cff',
     fontSize: 16,
     fontWeight: 'bold',
+    fontFamily: headerFontFamily,
+  },
+  searchResultsContainer: {
+    width: '100%',
+    maxHeight: 200,
+    marginBottom: 16,
+  },
+  searchResultsTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2c2c2c',
+    marginBottom: 8,
+    fontFamily: headerFontFamily,
+  },
+  searchResultsList: {
+    maxHeight: 150,
+  },
+  searchResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: '#ece6da',
+  },
+  searchResultAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 12,
+  },
+  searchResultAvatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 12,
+    backgroundColor: '#4a7cff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchResultAvatarText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  searchResultInfo: {
+    flex: 1,
+  },
+  searchResultName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2c2c2c',
+    fontFamily: headerFontFamily,
+  },
+  searchResultUsername: {
+    fontSize: 14,
+    color: '#666',
+    fontFamily: headerFontFamily,
+  },
+  searchLoadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    marginBottom: 16,
+  },
+  searchLoadingText: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 8,
     fontFamily: headerFontFamily,
   },
 }); 

@@ -230,6 +230,18 @@ export const friendsAPI = {
     const response = await api.post('/friends/suggested', { phoneNumbers, emails, usernames });
     return response.data;
   },
+  
+  // Debug suggested friends functionality
+  debugSuggested: async () => {
+    const response = await api.get('/friends/debug-suggested');
+    return response.data;
+  },
+  
+  // Search users by username
+  searchUsers: async (query) => {
+    const response = await api.get(`/friends/search?query=${encodeURIComponent(query)}`);
+    return response.data;
+  },
 
   // Get incoming and outgoing friend requests
   getRequests: async () => {
