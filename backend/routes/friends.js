@@ -187,7 +187,9 @@ router.post('/suggested', authenticateToken, async (req, res) => {
       conditions.push(`phone.in.(${phoneNumbers.map(p => `'${p}'`).join(',')})`);
     }
     if (usernames.length > 0) {
-      conditions.push(`username.in.(${usernames.map(u => `'${u}'`).join(',')})`);
+      // Normalize usernames to lowercase for case-insensitive lookup
+      const normalizedUsernames = usernames.map(u => u.toLowerCase());
+      conditions.push(`username.in.(${normalizedUsernames.map(u => `'${u}'`).join(',')})`);
     }
     
     if (conditions.length > 0) {
@@ -220,11 +222,11 @@ router.post('/request', authenticateToken, async (req, res) => {
     }
     let recipient;
     if (username) {
-      // Find recipient by username
+      // Find recipient by username (case-insensitive)
       const { data, error } = await supabase
         .from('users')
         .select('id, username')
-        .eq('username', username)
+        .ilike('username', username.toLowerCase())
         .single();
       if (error || !data) {
         return res.status(404).json({ error: 'User with that username not found' });

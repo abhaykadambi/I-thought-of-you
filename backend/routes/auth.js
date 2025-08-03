@@ -156,6 +156,9 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Username must be 3-32 characters long and contain only letters, numbers, and underscores' });
     }
 
+    // Normalize username to lowercase for case-insensitive handling
+    const normalizedUsername = username.toLowerCase();
+
     // Check if user already exists (by email, phone, or username)
     let existingUser, checkError;
     if (phone && phone.trim() !== '') {
@@ -163,7 +166,7 @@ router.post('/register', async (req, res) => {
       const result = await supabase
         .from('users')
         .select('id')
-        .or(`email.eq.${email},phone.eq.${phone},username.eq.${username}`)
+        .or(`email.eq.${email},phone.eq.${phone},username.ilike.${normalizedUsername}`)
         .single();
       existingUser = result.data;
       checkError = result.error;
@@ -172,7 +175,7 @@ router.post('/register', async (req, res) => {
       const result = await supabase
         .from('users')
         .select('id')
-        .or(`email.eq.${email},username.eq.${username}`)
+        .or(`email.eq.${email},username.ilike.${normalizedUsername}`)
         .single();
       existingUser = result.data;
       checkError = result.error;
@@ -193,7 +196,7 @@ router.post('/register', async (req, res) => {
       email,
       password: hashedPassword,
       name,
-      username,
+      username: normalizedUsername, // Store normalized (lowercase) username
       created_at: new Date().toISOString()
     };
     
@@ -701,11 +704,14 @@ router.get('/check-username/:username', async (req, res) => {
       });
     }
 
-    // Check if username exists
+    // Normalize username to lowercase for case-insensitive check
+    const normalizedUsername = username.toLowerCase();
+
+    // Check if username exists (case-insensitive)
     const { data: existingUser, error } = await supabase
       .from('users')
       .select('id')
-      .eq('username', username)
+      .ilike('username', normalizedUsername)
       .single();
 
     if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" error

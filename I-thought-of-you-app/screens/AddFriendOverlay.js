@@ -38,7 +38,18 @@ export default function AddFriendOverlay({ navigation }) {
 
   const handleInviteFriend = async () => {
     try {
-      const inviteMessage = "Hey! I'm using I Thought of You - a beautiful app for sharing thoughts with friends. Join me! Download it here: https://your-app-store-link.com";
+      // iOS App Store link (Android not available yet)
+      const iosLink = "https://apps.apple.com/us/app/i-thought-of-you/id6748984846";
+      
+      // Create platform-appropriate message
+      let inviteMessage;
+      if (Platform.OS === 'ios') {
+        inviteMessage = `I thought of you.\n\n📱 ${iosLink}`;
+      } else {
+        // For Android users or other platforms, still show iOS link since that's the only option
+        inviteMessage = `I thought of you.\n\n📱 ${iosLink}\n\n(Android version coming soon!)`;
+      }
+      
       await Share.share({
         message: inviteMessage,
         title: 'Invite to I Thought of You'

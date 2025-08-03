@@ -5,6 +5,7 @@ import ReactionPicker from '../components/ReactionPicker';
 import ReactionDisplay from '../components/ReactionDisplay';
 import ThoughtOptionsOverlay from './ThoughtOptionsOverlay';
 import ReportContentOverlay from './ReportContentOverlay';
+import FullScreenImageViewer from '../components/FullScreenImageViewer';
 
 const globalBackground = '#f8f5ee';
 const cardBackground = '#fff9ed';
@@ -19,6 +20,7 @@ export default function ThoughtDetailOverlay({ route, navigation }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [showOptions, setShowOptions] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [showFullScreenImage, setShowFullScreenImage] = useState(false);
 
   // Debug: Log the thought object
   console.log('ThoughtDetailOverlay received thought:', thought);
@@ -182,13 +184,17 @@ export default function ThoughtDetailOverlay({ route, navigation }) {
         </View>
         <Text style={styles.text}>{thought.text}</Text>
         {thought.image && (
-          <View style={styles.imageContainer}>
+          <TouchableOpacity 
+            style={styles.imageContainer} 
+            onPress={() => setShowFullScreenImage(true)}
+            activeOpacity={0.9}
+          >
             <Image 
               source={{ uri: thought.image }} 
               style={styles.thoughtImage}
               resizeMode="cover"
             />
-          </View>
+          </TouchableOpacity>
         )}
         <Text style={styles.time}>{thought.time}</Text>
         
@@ -236,6 +242,13 @@ export default function ThoughtDetailOverlay({ route, navigation }) {
         onReportSubmitted={() => {
           // Optionally refresh or show success message
         }}
+      />
+
+      {/* Full-screen image viewer */}
+      <FullScreenImageViewer
+        visible={showFullScreenImage}
+        imageUri={thought.image}
+        onClose={() => setShowFullScreenImage(false)}
       />
     </View>
   );
