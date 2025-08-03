@@ -290,7 +290,7 @@ router.get('/search', authenticateToken, async (req, res) => {
       .select('id, name, username, avatar, created_at')
       .ilike('username', `%${searchQuery}%`)
       .neq('id', currentUserId)
-      .limit(10); // Limit results for performance
+      .limit(5); // Limit to 5 results to avoid overcrowding
     
     if (error) {
       console.error('User search error:', error);

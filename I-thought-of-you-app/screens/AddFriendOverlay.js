@@ -15,7 +15,7 @@ export default function AddFriendOverlay({ navigation }) {
   const [searching, setSearching] = useState(false);
   const [searchTimeout, setSearchTimeout] = useState(null);
 
-  // Search users as they type
+  // Search users as they type (only for usernames)
   const handleSearch = async (text) => {
     setContact(text);
     
@@ -24,8 +24,11 @@ export default function AddFriendOverlay({ navigation }) {
       clearTimeout(searchTimeout);
     }
     
-    // Clear results if input is too short
-    if (!text || text.trim().length < 2) {
+    // Only search if it looks like a username (no @, no spaces, no special chars except _)
+    const isUsernameLike = /^[a-zA-Z0-9_]*$/.test(text) && text.length >= 2;
+    
+    // Clear results if not username-like or too short
+    if (!isUsernameLike) {
       setSearchResults([]);
       return;
     }
@@ -110,7 +113,7 @@ export default function AddFriendOverlay({ navigation }) {
         <View style={styles.addRow}>
           <TextInput
             style={styles.input}
-            placeholder="Add by username, email, or phone"
+            placeholder="Type username to search, or enter email/phone"
             value={contact}
             onChangeText={handleSearch}
             keyboardType="default"
@@ -127,7 +130,7 @@ export default function AddFriendOverlay({ navigation }) {
         {/* Search Results */}
         {searchResults.length > 0 && (
           <View style={styles.searchResultsContainer}>
-            <Text style={styles.searchResultsTitle}>Found Users:</Text>
+            <Text style={styles.searchResultsTitle}>Matching Usernames:</Text>
             <FlatList
               data={searchResults}
               keyExtractor={(item) => item.id}
