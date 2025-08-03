@@ -59,7 +59,7 @@ router.get('/search', authenticateToken, async (req, res) => {
     const currentUserId = req.user.userId;
     const { query } = req.query;
     
-    if (!query || query.trim().length < 2) {
+    if (!query || query.trim().length < 1) {
       console.log('Query too short, returning empty results');
       return res.json({ users: [] });
     }

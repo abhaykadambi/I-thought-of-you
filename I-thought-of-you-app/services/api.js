@@ -282,6 +282,21 @@ export const friendsAPI = {
   },
 };
 
+// Notifications API
+export const notificationsAPI = {
+  // Debug notification setup
+  debug: async () => {
+    const response = await api.get('/notifications/debug');
+    return response.data;
+  },
+
+  // Test notification
+  test: async () => {
+    const response = await api.post('/notifications/test');
+    return response.data;
+  },
+};
+
 // Settings API
 export const settingsAPI = {
   // Get user settings (privacy and notifications)

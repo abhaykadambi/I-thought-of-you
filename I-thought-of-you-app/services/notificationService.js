@@ -20,13 +20,16 @@ class NotificationService {
   // Request push notification permissions
   async requestPermissions() {
     try {
+      console.log('Requesting notification permissions...');
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      console.log('Existing permission status:', existingStatus);
       let finalStatus = existingStatus;
       
       // Only ask if permissions have not been determined
       if (existingStatus !== 'granted') {
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
+        console.log('New permission status after request:', status);
       }
       
       this.permissionStatus = finalStatus;
@@ -39,11 +42,15 @@ class NotificationService {
       // Get push token for remote notifications
       const token = await this.getPushToken();
       if (token) {
-        await this.registerPushToken(token);
+        console.log('Got push token:', token.substring(0, 20) + '...');
+        const success = await this.registerPushToken(token);
+        console.log('Push token registration result:', success);
+        return success;
+      } else {
+        console.log('Failed to get push token');
+        return false;
       }
       
-      console.log('Notification permissions granted successfully!');
-      return true;
     } catch (error) {
       console.error('Error requesting notification permissions:', error);
       return false;
@@ -55,6 +62,7 @@ class NotificationService {
     try {
       const { status } = await Notifications.getPermissionsAsync();
       this.permissionStatus = status;
+      console.log('Current permission status:', status);
       return status;
     } catch (error) {
       console.error('Error checking notification permissions:', error);
@@ -90,6 +98,7 @@ class NotificationService {
   // Send a local test notification
   async sendTestNotification() {
     try {
+      console.log('Sending test notification...');
       await Notifications.scheduleNotificationAsync({
         content: {
           title: "Test Notification",
@@ -98,6 +107,7 @@ class NotificationService {
         },
         trigger: null, // Send immediately
       });
+      console.log('Test notification sent successfully');
       return true;
     } catch (error) {
       console.error('Error sending test notification:', error);
@@ -143,9 +153,11 @@ class NotificationService {
   // Get Expo push token
   async getPushToken() {
     try {
+      console.log('Getting Expo push token...');
       const token = await Notifications.getExpoPushTokenAsync({
-        projectId: '35bc5d75-73b4-4250-b2d1-470d61a7279d',
+        projectId: '35bc5d75-73b4-4250-b2d1-470d61a7279d', // Make sure this matches your Expo project ID
       });
+      console.log('Push token obtained successfully');
       return token.data;
     } catch (error) {
       console.error('Error getting push token:', error);
@@ -156,13 +168,15 @@ class NotificationService {
   // Register push token with backend
   async registerPushToken(token) {
     try {
+      console.log('Registering push token with backend...');
       const response = await api.post('/notifications/register-token', {
         pushToken: token
       });
-      console.log('Push token registered successfully');
+      console.log('Push token registered successfully with backend');
       return true;
     } catch (error) {
-      console.error('Error registering push token:', error);
+      console.error('Error registering push token with backend:', error);
+      console.error('Error details:', error.response?.data);
       return false;
     }
   }
@@ -182,10 +196,12 @@ class NotificationService {
   // Set up notification listener
   setupNotificationListener(navigation) {
     const subscription = Notifications.addNotificationReceivedListener(notification => {
+      console.log('Notification received:', notification);
       // You can handle the notification here if needed
     });
 
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('Notification response received:', response);
       // Navigate to the appropriate screen when notification is tapped
       if (response.notification.request.content.data?.type === 'new_thought' && navigation) {
         // Navigate to the feed screen to show the new thought
@@ -205,6 +221,37 @@ class NotificationService {
       return '1. Open Settings app\n2. Scroll down and tap "I Thought of You"\n3. Tap "Notifications"\n4. Enable "Allow Notifications"';
     } else {
       return '1. Open Settings app\n2. Tap "Apps" or "Application Manager"\n3. Find and tap "I Thought of You"\n4. Tap "Notifications"\n5. Enable notifications';
+    }
+  }
+
+  // Debug function to check notification setup
+  async debugNotificationSetup() {
+    try {
+      console.log('=== Notification Setup Debug ===');
+      
+      // Check permissions
+      const permissionStatus = await this.checkPermissionStatus();
+      console.log('Permission status:', permissionStatus);
+      
+      // Check if we can get a push token
+      const token = await this.getPushToken();
+      console.log('Push token available:', !!token);
+      if (token) {
+        console.log('Token preview:', token.substring(0, 20) + '...');
+      }
+      
+      // Try to send a test notification
+      const testResult = await this.sendTestNotification();
+      console.log('Test notification result:', testResult);
+      
+      return {
+        permissionStatus,
+        hasToken: !!token,
+        testNotificationSent: testResult
+      };
+    } catch (error) {
+      console.error('Debug notification setup error:', error);
+      return { error: error.message };
     }
   }
 }

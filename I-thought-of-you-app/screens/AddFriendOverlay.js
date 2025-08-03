@@ -25,7 +25,7 @@ export default function AddFriendOverlay({ navigation }) {
     }
     
     // Only search if it looks like a username (no @, no spaces, no special chars except _)
-    const isUsernameLike = /^[a-zA-Z0-9_]*$/.test(text) && text.length >= 2;
+    const isUsernameLike = /^[a-zA-Z0-9_]*$/.test(text) && text.length >= 1;
     
     // Clear results if not username-like or too short
     if (!isUsernameLike) {

@@ -229,38 +229,9 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.header}>Friends</Text>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TouchableOpacity style={styles.headerInviteButton} onPress={() => navigation.navigate('AddFriendOverlay')}>
-            <Text style={styles.headerInviteButtonText}>+</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.headerInviteButton, { backgroundColor: '#e74c3c' }]} 
-            onPress={async () => {
-              try {
-                // Test contacts access
-                const { status } = await Contacts.requestPermissionsAsync();
-                const { data } = await Contacts.getContactsAsync({ 
-                  fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
-                  pageSize: 10
-                });
-                
-                const debug = await friendsAPI.debugSuggested();
-                Alert.alert('Debug Info', 
-                  `Contacts Permission: ${status}\n` +
-                  `Contacts Found: ${data?.length || 0}\n` +
-                  `Total Users: ${debug.totalUsers}\n` +
-                  `Users with Phone: ${debug.usersWithPhoneCount}\n` +
-                  `Sample Phones: ${debug.samplePhones.join(', ')}\n` +
-                  `Current User ID: ${debug.currentUserId}`
-                );
-              } catch (error) {
-                Alert.alert('Debug Error', error.message);
-              }
-            }}
-          >
-            <Text style={styles.headerInviteButtonText}>🔍</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.headerInviteButton} onPress={() => navigation.navigate('AddFriendOverlay')}>
+          <Text style={styles.headerInviteButtonText}>🔍</Text>
+        </TouchableOpacity>
       </View>
       {/* Incoming Friend Requests */}
       {incomingRequests.length > 0 && (
@@ -310,7 +281,7 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
         sections={sections}
         keyExtractor={item => item.id}
         renderSectionHeader={({ section: { title } }) => (
-          <Text style={title === 'Friends' ? styles.sectionHeader : styles.suggestedHeader}>{title}</Text>
+          title === 'Friends' ? null : <Text style={styles.suggestedHeader}>{title}</Text>
         )}
         renderItem={({ item, section }) => section.renderItem({ item })}
         ListEmptyComponent={renderEmptyState}
@@ -372,7 +343,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingBottom: 120,
   },
   friendCard: {
     flexDirection: 'row',
@@ -439,6 +410,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#2c2c2c',
+    marginTop: 20,
     marginBottom: 10,
     fontFamily: headerFontFamily,
   },

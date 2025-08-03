@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform, KeyboardAvoidingView, ActivityIndicator, Modal, Pressable, Linking } from 'react-native';
 import { authAPI } from '../services/api';
+import notificationService from '../services/notificationService';
 
 const globalBackground = '#f8f5ee';
 const cardBackground = '#fff9ed';
@@ -42,6 +43,21 @@ export default function SignupScreen({ navigation }) {
       await authAPI.register({ email, password, name, phone, username });
       setShowPolicyModal(false);
       setPendingSignup(false);
+      
+      // Request notification permissions after successful signup
+      try {
+        console.log('Requesting notification permissions for new user...');
+        const permissionGranted = await notificationService.requestPermissions();
+        if (permissionGranted) {
+          console.log('Notification permissions granted for new user');
+        } else {
+          console.log('Notification permissions not granted for new user');
+        }
+      } catch (notificationError) {
+        console.error('Error requesting notification permissions:', notificationError);
+        // Don't fail the signup if notification permission request fails
+      }
+      
       navigation.navigate('MainApp');
     } catch (error) {
       const backendError = error.response?.data?.error || '';

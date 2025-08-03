@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform, KeyboardAvoidingView } from 'react-native';
 import { authAPI } from '../services/api';
+import notificationService from '../services/notificationService';
 
 const globalBackground = '#f8f5ee';
 const cardBackground = '#fff9ed';
@@ -17,6 +18,21 @@ export default function LoginScreen({ navigation }) {
     }
     try {
       await authAPI.login({ email, password });
+      
+      // Check and request notification permissions if not already granted
+      try {
+        const permissionStatus = await notificationService.checkPermissionStatus();
+        if (permissionStatus !== 'granted') {
+          console.log('Requesting notification permissions for existing user...');
+          await notificationService.requestPermissions();
+        } else {
+          console.log('Notification permissions already granted for existing user');
+        }
+      } catch (notificationError) {
+        console.error('Error handling notification permissions:', notificationError);
+        // Don't fail the login if notification permission request fails
+      }
+      
       navigation.navigate('MainApp');
     } catch (error) {
       Alert.alert('Login Failed', error.response?.data?.error || 'Login failed. Please try again.');
