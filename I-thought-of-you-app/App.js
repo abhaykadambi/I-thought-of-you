@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, Platform, ActivityIndicator, View } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
 import WelcomeScreen from './screens/WelcomeScreen';
 import LoginScreen from './screens/LoginScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
@@ -122,19 +123,31 @@ function MainApp({ navigation }) {
 
 export default function App() {
   const [initialRoute, setInitialRoute] = useState(null);
+  const [appIsReady, setAppIsReady] = useState(false);
 
   useEffect(() => {
     const initializeApp = async () => {
-      // Check authentication
-      const loggedIn = await authAPI.isLoggedIn();
-      setInitialRoute(loggedIn ? 'MainApp' : 'Welcome');
-      
-      // Request notification permissions if user is logged in
-      if (loggedIn) {
-        // Small delay to ensure app is fully loaded
-        setTimeout(async () => {
-          await notificationService.requestPermissions();
-        }, 1000);
+      try {
+        // Keep the splash screen visible while we fetch resources
+        await SplashScreen.preventAutoHideAsync();
+        
+        // Check authentication
+        const loggedIn = await authAPI.isLoggedIn();
+        setInitialRoute(loggedIn ? 'MainApp' : 'Welcome');
+        
+        // Request notification permissions if user is logged in
+        if (loggedIn) {
+          // Small delay to ensure app is fully loaded
+          setTimeout(async () => {
+            await notificationService.requestPermissions();
+          }, 1000);
+        }
+      } catch (error) {
+        console.warn('Error during app initialization:', error);
+      } finally {
+        setAppIsReady(true);
+        // Hide the splash screen
+        await SplashScreen.hideAsync();
       }
     };
     initializeApp();
@@ -155,10 +168,11 @@ export default function App() {
     },
   };
 
-  if (initialRoute === null) {
+  if (!appIsReady || initialRoute === null) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: globalBackground }}>
-        <ActivityIndicator size="large" color="#4a7cff" />
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>I thought of you...</Text>
+        <ActivityIndicator size="large" color="#4a7cff" style={styles.loadingSpinner} />
       </View>
     );
   }
@@ -199,5 +213,21 @@ const styles = StyleSheet.create({
     backgroundColor: globalBackground,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: globalBackground,
+  },
+  loadingText: {
+    fontSize: 18,
+    color: '#4a7cff',
+    marginBottom: 20,
+    fontFamily: headerFontFamily,
+    fontWeight: '500',
+  },
+  loadingSpinner: {
+    marginTop: 10,
   },
 });

@@ -299,7 +299,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
   try {
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, name, username, avatar, created_at')
+      .select('id, email, name, username, avatar, phone, created_at')
       .eq('id', req.user.userId)
       .single();
 
@@ -314,12 +314,12 @@ router.get('/profile', authenticateToken, async (req, res) => {
   }
 });
 
-// Update current user profile (name, avatar)
+// Update current user profile (name, avatar, phone)
 router.put('/profile', authenticateToken, async (req, res) => {
   try {
-    const { name, avatar } = req.body;
+    const { name, avatar, phone } = req.body;
     // Only log avatar length, not the full data
-    console.log('Profile update request:', { name, avatarLength: avatar ? avatar.length : 0 });
+    console.log('Profile update request:', { name, phone, avatarLength: avatar ? avatar.length : 0 });
     
     if (!name) {
       return res.status(400).json({ error: 'Name is required' });
@@ -331,6 +331,16 @@ router.put('/profile', authenticateToken, async (req, res) => {
       console.log('Adding avatar to updates, length:', avatar.length);
       updates.avatar = avatar;
     }
+    if (phone !== undefined) {
+      // Validate phone number format if provided
+      if (phone && phone.trim() !== '') {
+        const phoneRegex = /^\+?[\d\s\-\(\)]+$/;
+        if (!phoneRegex.test(phone)) {
+          return res.status(400).json({ error: 'Invalid phone number format' });
+        }
+      }
+      updates.phone = phone || null;
+    }
     updates.updated_at = new Date().toISOString();
 
     // Only log avatar length in updates
@@ -340,7 +350,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
       .from('users')
       .update(updates)
       .eq('id', req.user.userId)
-      .select('id, email, name, avatar, created_at')
+      .select('id, email, name, avatar, phone, created_at')
       .single();
 
     if (error) {

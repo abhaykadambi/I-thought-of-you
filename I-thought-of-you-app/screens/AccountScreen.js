@@ -13,6 +13,7 @@ export default function AccountScreen({ navigation }) {
   const [editMode, setEditMode] = useState(false);
   const [editedName, setEditedName] = useState('');
   const [editedAvatar, setEditedAvatar] = useState('');
+  const [editedPhone, setEditedPhone] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -30,6 +31,7 @@ export default function AccountScreen({ navigation }) {
       setUser(profile);
       setEditedName(profile.name || '');
       setEditedAvatar(profile.avatar || '');
+      setEditedPhone(profile.phone || '');
     } catch (error) {
       console.error('Error loading profile:', error);
       Alert.alert('Error', 'Failed to load profile. Please try again.');
@@ -72,8 +74,8 @@ export default function AccountScreen({ navigation }) {
 
   const handleSaveProfile = async () => {
     try {
-      await authAPI.updateProfile({ name: editedName, avatar: editedAvatar });
-      setUser((prev) => ({ ...prev, name: editedName, avatar: editedAvatar }));
+      await authAPI.updateProfile({ name: editedName, avatar: editedAvatar, phone: editedPhone });
+      setUser((prev) => ({ ...prev, name: editedName, avatar: editedAvatar, phone: editedPhone }));
       setEditMode(false);
       Alert.alert('Success', 'Profile updated successfully!');
     } catch (error) {
@@ -210,6 +212,20 @@ export default function AccountScreen({ navigation }) {
             <Text style={styles.name}>{user?.name || 'No Name'}</Text>
           )}
           <Text style={styles.email}>{user?.email}</Text>
+          
+          {/* Phone Number Section */}
+          {editMode ? (
+            <TextInput
+              style={styles.phoneInput}
+              value={editedPhone}
+              onChangeText={setEditedPhone}
+              placeholder="Phone Number (Optional)"
+              placeholderTextColor="#b0a99f"
+              keyboardType="phone-pad"
+            />
+          ) : (
+            <Text style={styles.phone}>{user?.phone || 'No phone number'}</Text>
+          )}
         </View>
         <TouchableOpacity 
           style={styles.editButton} 
@@ -407,6 +423,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     fontFamily: headerFontFamily,
+  },
+  phone: {
+    fontSize: 16,
+    color: '#666',
+    fontFamily: headerFontFamily,
+    marginTop: 4,
+  },
+  phoneInput: {
+    fontSize: 16,
+    color: '#2c2c2c',
+    fontFamily: headerFontFamily,
+    textAlign: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#4a7cff',
+    paddingVertical: 4,
+    marginTop: 8,
   },
   editButton: {
     backgroundColor: '#4a7cff',

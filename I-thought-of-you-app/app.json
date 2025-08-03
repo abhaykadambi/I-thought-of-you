@@ -11,7 +11,12 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#f8f5ee"
+    },
+    "expo-splash-screen": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#f8f5ee"
     },
     "ios": {
       "supportsTablet": true,
@@ -23,7 +28,8 @@
         ],
         "ITSAppUsesNonExemptEncryption": false,
         "NSContactsUsageDescription": "This app uses your contacts to help you find and connect with friends who are also using the app. We only access contacts to suggest friends and do not store or share your contact information.",
-        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to allow you to select and upload profile pictures. We only access photos that you specifically choose to upload."
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to allow you to select and upload profile pictures. We only access photos that you specifically choose to upload.",
+        "NSCameraUsageDescription": "This app needs access to your camera to allow you to take photos for your thoughts. We only access the camera when you choose to take a photo."
       }
     },
     "android": {
@@ -35,7 +41,8 @@
       "edgeToEdgeEnabled": true,
       "permissions": [
         "NOTIFICATIONS",
-        "VIBRATE"
+        "VIBRATE",
+        "CAMERA"
       ]
     },
     "notification": {

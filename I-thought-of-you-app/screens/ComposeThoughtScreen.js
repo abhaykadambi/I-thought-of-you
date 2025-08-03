@@ -61,6 +61,48 @@ export default function ComposeThoughtScreen({ route, navigation }) {
   };
 
   const pickImage = async () => {
+    Alert.alert(
+      'Add Photo',
+      'Choose how you want to add a photo',
+      [
+        {
+          text: 'Take Photo',
+          onPress: () => takePhoto(),
+        },
+        {
+          text: 'Choose from Gallery',
+          onPress: () => selectFromGallery(),
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const takePhoto = async () => {
+    // Request camera permissions
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Sorry, we need camera permissions to take a photo!');
+      return;
+    }
+
+    // Launch camera
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.3, // Very low quality to keep files under 5MB
+    });
+
+    if (!result.canceled && result.assets && result.assets[0]) {
+      setSelectedImage(result.assets[0].uri);
+    }
+  };
+
+  const selectFromGallery = async () => {
     // Request permissions
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -243,7 +285,7 @@ export default function ComposeThoughtScreen({ route, navigation }) {
             </View>
           ) : (
             <TouchableOpacity style={styles.addImageButton} onPress={pickImage}>
-              <Text style={styles.addImageText}>📷 Add Photo</Text>
+              <Text style={styles.addImageText}>📷 Take or Choose Photo</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -273,7 +315,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingTop: 40,
     paddingHorizontal: 0,
-    paddingBottom: 40,
+    paddingBottom: 80,
   },
   header: {
     fontSize: 28,
@@ -390,6 +432,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 8,
+    marginBottom: 20,
     shadowColor: '#4a7cff',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
