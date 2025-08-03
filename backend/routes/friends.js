@@ -52,6 +52,42 @@ router.get('/requests', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /friends/search - Search users by username (MUST come before /:friendId route)
+router.get('/search', authenticateToken, async (req, res) => {
+  try {
+    console.log('Search endpoint hit with query:', req.query);
+    const currentUserId = req.user.userId;
+    const { query } = req.query;
+    
+    if (!query || query.trim().length < 2) {
+      console.log('Query too short, returning empty results');
+      return res.json({ users: [] });
+    }
+    
+    const searchQuery = query.toLowerCase().trim();
+    console.log('Searching for:', searchQuery);
+    
+    // Search for users by username (case-insensitive)
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('id, name, username, avatar, created_at')
+      .ilike('username', `%${searchQuery}%`)
+      .neq('id', currentUserId)
+      .limit(5); // Limit to 5 results to avoid overcrowding
+    
+    if (error) {
+      console.error('User search error:', error);
+      return res.status(500).json({ error: 'Failed to search users' });
+    }
+    
+    console.log('Search results:', users?.length || 0, 'users found');
+    res.json({ users: users || [] });
+  } catch (error) {
+    console.error('User search error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get friend profile with thoughts from that friend
 router.get('/:friendId', authenticateToken, async (req, res) => {
   try {
@@ -272,37 +308,7 @@ router.get('/debug-suggested', authenticateToken, async (req, res) => {
   }
 });
 
-// GET /friends/search - Search users by username
-router.get('/search', authenticateToken, async (req, res) => {
-  try {
-    const currentUserId = req.user.userId;
-    const { query } = req.query;
-    
-    if (!query || query.trim().length < 2) {
-      return res.json({ users: [] });
-    }
-    
-    const searchQuery = query.toLowerCase().trim();
-    
-    // Search for users by username (case-insensitive)
-    const { data: users, error } = await supabase
-      .from('users')
-      .select('id, name, username, avatar, created_at')
-      .ilike('username', `%${searchQuery}%`)
-      .neq('id', currentUserId)
-      .limit(5); // Limit to 5 results to avoid overcrowding
-    
-    if (error) {
-      console.error('User search error:', error);
-      return res.status(500).json({ error: 'Failed to search users' });
-    }
-    
-    res.json({ users: users || [] });
-  } catch (error) {
-    console.error('User search error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+
 
 // POST /friends/request - Send a friend request by phone number, email, or username
 router.post('/request', authenticateToken, async (req, res) => {
