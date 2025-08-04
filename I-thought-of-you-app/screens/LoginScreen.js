@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform, K
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { authAPI } from '../services/api';
 import notificationService from '../services/notificationService';
+import AppleSignInModal from '../components/AppleSignInModal';
 
 const globalBackground = '#f8f5ee';
 const cardBackground = '#fff9ed';
@@ -12,6 +13,8 @@ export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [appleLoading, setAppleLoading] = useState(false);
+  const [showAppleModal, setShowAppleModal] = useState(false);
+  const [appleUserData, setAppleUserData] = useState(null);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -60,12 +63,13 @@ export default function LoginScreen({ navigation }) {
       );
 
       if (response.isNewUser) {
-        // New user - redirect to signup to complete profile
-        Alert.alert(
-          'New User',
-          'Please complete your profile setup on the signup screen.',
-          [{ text: 'OK', onPress: () => navigation.navigate('Signup') }]
-        );
+        // New user - show modal to complete profile
+        setAppleUserData({
+          appleUserId: response.appleUserId,
+          appleEmail: response.appleEmail,
+          fullName: response.fullName
+        });
+        setShowAppleModal(true);
       } else {
         // Existing user - proceed to main app
         try {
@@ -82,15 +86,42 @@ export default function LoginScreen({ navigation }) {
         navigation.navigate('MainApp');
       }
     } catch (error) {
-      if (error.code === 'ERR_CANCELED') {
-        // User cancelled Apple Sign-In
-        console.log('Apple Sign-In cancelled');
+      if (error.code === 'ERR_CANCELED' || error.code === 'ERR_REQUEST_CANCELED') {
+        // User cancelled Apple Sign-In - don't show error
+        console.log('Apple Sign-In cancelled by user');
       } else {
         console.error('Apple Sign-In error:', error);
         Alert.alert('Apple Sign-In Failed', 'Please try again or use email login.');
       }
     } finally {
       setAppleLoading(false);
+    }
+  };
+
+  const handleCompleteAppleSignIn = async ({ name, username }) => {
+    try {
+      await authAPI.completeAppleSignIn(
+        appleUserData.appleUserId,
+        appleUserData.appleEmail,
+        appleUserData.fullName,
+        name,
+        username
+      );
+
+      setShowAppleModal(false);
+      setAppleUserData(null);
+
+      // Request notification permissions
+      try {
+        console.log('Requesting notification permissions for new Apple Sign-In user...');
+        await notificationService.requestPermissions();
+      } catch (notificationError) {
+        console.error('Error requesting notification permissions:', notificationError);
+      }
+
+      navigation.navigate('MainApp');
+    } catch (error) {
+      Alert.alert('Setup Failed', error.response?.data?.error || 'Failed to complete setup. Please try again.');
     }
   };
 
@@ -157,6 +188,17 @@ export default function LoginScreen({ navigation }) {
       >
         <Text style={styles.backButtonText}>Back to Welcome</Text>
       </TouchableOpacity>
+
+      {/* Apple Sign-In Modal */}
+      <AppleSignInModal
+        visible={showAppleModal}
+        onComplete={handleCompleteAppleSignIn}
+        onCancel={() => {
+          setShowAppleModal(false);
+          setAppleUserData(null);
+        }}
+        appleUserData={appleUserData}
+      />
     </KeyboardAvoidingView>
   );
 }

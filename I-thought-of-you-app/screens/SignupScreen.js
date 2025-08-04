@@ -128,9 +128,9 @@ export default function SignupScreen({ navigation }) {
         navigation.navigate('MainApp');
       }
     } catch (error) {
-      if (error.code === 'ERR_CANCELED') {
-        // User cancelled Apple Sign-In
-        console.log('Apple Sign-In cancelled');
+      if (error.code === 'ERR_CANCELED' || error.code === 'ERR_REQUEST_CANCELED') {
+        // User cancelled Apple Sign-In - don't show error
+        console.log('Apple Sign-In cancelled by user');
       } else {
         console.error('Apple Sign-In error:', error);
         Alert.alert('Apple Sign-In Failed', 'Please try again or use email signup.');
