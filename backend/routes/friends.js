@@ -220,25 +220,39 @@ router.post('/suggested', authenticateToken, async (req, res) => {
     let allUsers = new Map(); // Use Map to avoid duplicates
     let priorityUsers = new Map(); // High priority users (direct matches)
 
-    // Get current user's friends to exclude them from suggestions
-    const { data: userFriends } = await supabase
+    // Get users to exclude from suggestions (friends + pending/declined requests)
+    const { data: allFriendRequests } = await supabase
       .from('friend_requests')
-      .select('recipient_id, sender_id')
-      .or(`sender_id.eq.${currentUserId},recipient_id.eq.${currentUserId}`)
-      .eq('status', 'accepted');
+      .select('recipient_id, sender_id, status')
+      .or(`sender_id.eq.${currentUserId},recipient_id.eq.${currentUserId}`);
     
-    const friendIds = new Set();
-    if (userFriends) {
-      userFriends.forEach(friend => {
-        if (friend.sender_id === currentUserId) {
-          friendIds.add(friend.recipient_id);
-        } else {
-          friendIds.add(friend.sender_id);
+    const excludedUserIds = new Set();
+    if (allFriendRequests) {
+      allFriendRequests.forEach(request => {
+        const otherUserId = request.sender_id === currentUserId ? request.recipient_id : request.sender_id;
+        
+        // Exclude if:
+        // 1. Already friends (accepted)
+        // 2. Pending request (either direction)
+        // 3. Declined request (either direction)
+        if (request.status === 'accepted' || request.status === 'pending' || request.status === 'declined') {
+          excludedUserIds.add(otherUserId);
         }
       });
     }
     
-    console.log(`Excluding ${friendIds.size} existing friends from suggestions`);
+    console.log(`Excluding ${excludedUserIds.size} users from suggestions (friends + pending/declined requests)`);
+    
+    // Log breakdown of excluded users by status
+    const excludedByStatus = { accepted: 0, pending: 0, declined: 0 };
+    if (allFriendRequests) {
+      allFriendRequests.forEach(request => {
+        if (request.status === 'accepted' || request.status === 'pending' || request.status === 'declined') {
+          excludedByStatus[request.status]++;
+        }
+      });
+    }
+    console.log('Excluded users breakdown:', excludedByStatus);
 
     // Step 1: Find users from direct contact matches (emails, phone numbers, exact usernames)
     if (emails.length > 0 || phoneNumbers.length > 0 || usernames.length > 0) {
@@ -258,13 +272,13 @@ router.post('/suggested', authenticateToken, async (req, res) => {
         } else {
           console.log(`Found ${emailUsers?.length || 0} users by email`);
           emailUsers?.forEach(user => {
-            // Only add if not already a friend
-            if (!friendIds.has(user.id)) {
+            // Only add if not already excluded (friend, pending, or declined)
+            if (!excludedUserIds.has(user.id)) {
               allUsers.set(user.id, user);
               priorityUsers.set(user.id, user); // Mark as high priority
               console.log(`Added email match: ${user.name} (${user.email})`);
             } else {
-              console.log(`Skipped email match (already friend): ${user.name} (${user.email})`);
+              console.log(`Skipped email match (already excluded): ${user.name} (${user.email})`);
             }
           });
         }
@@ -284,13 +298,13 @@ router.post('/suggested', authenticateToken, async (req, res) => {
         } else {
           console.log(`Found ${phoneUsers?.length || 0} users by phone`);
           phoneUsers?.forEach(user => {
-            // Only add if not already a friend
-            if (!friendIds.has(user.id)) {
+            // Only add if not already excluded (friend, pending, or declined)
+            if (!excludedUserIds.has(user.id)) {
               allUsers.set(user.id, user);
               priorityUsers.set(user.id, user); // Mark as high priority
               console.log(`Added phone match: ${user.name} (${user.phone})`);
             } else {
-              console.log(`Skipped phone match (already friend): ${user.name} (${user.phone})`);
+              console.log(`Skipped phone match (already excluded): ${user.name} (${user.phone})`);
             }
           });
         }
@@ -311,13 +325,13 @@ router.post('/suggested', authenticateToken, async (req, res) => {
         } else {
           console.log(`Found ${usernameUsers?.length || 0} users by username`);
           usernameUsers?.forEach(user => {
-            // Only add if not already a friend
-            if (!friendIds.has(user.id)) {
+            // Only add if not already excluded (friend, pending, or declined)
+            if (!excludedUserIds.has(user.id)) {
               allUsers.set(user.id, user);
               priorityUsers.set(user.id, user); // Mark as high priority
               console.log(`Added username match: ${user.name} (@${user.username})`);
             } else {
-              console.log(`Skipped username match (already friend): ${user.name} (@${user.username})`);
+              console.log(`Skipped username match (already excluded): ${user.name} (@${user.username})`);
             }
           });
         }
@@ -373,7 +387,7 @@ router.post('/suggested', authenticateToken, async (req, res) => {
           console.error('Username pattern query error:', similarError);
         } else if (similarUsers) {
           similarUsers.forEach(user => {
-            if (!allUsers.has(user.id) && !friendIds.has(user.id)) {
+            if (!allUsers.has(user.id) && !excludedUserIds.has(user.id)) {
               allUsers.set(user.id, user);
               // Don't mark as priority - these are pattern matches
             }
@@ -388,9 +402,20 @@ router.post('/suggested', authenticateToken, async (req, res) => {
     if (allUsers.size < MAX_SUGGESTIONS) {
       console.log(`Found ${allUsers.size} total matches, adding friends-of-friends to reach ${MAX_SUGGESTIONS}`);
       
-      // Convert friendIds Set to array for the query
-      const friendIdsArray = Array.from(friendIds);
-      console.log(`Current user has ${friendIdsArray.length} friends:`, friendIdsArray);
+      // Get only accepted friends for friends-of-friends logic
+      const acceptedFriendIds = new Set();
+      if (allFriendRequests) {
+        allFriendRequests.forEach(request => {
+          const otherUserId = request.sender_id === currentUserId ? request.recipient_id : request.sender_id;
+          if (request.status === 'accepted') {
+            acceptedFriendIds.add(otherUserId);
+          }
+        });
+      }
+      
+      // Convert acceptedFriendIds Set to array for the query
+      const friendIdsArray = Array.from(acceptedFriendIds);
+      console.log(`Current user has ${friendIdsArray.length} accepted friends:`, friendIdsArray);
       
       if (friendIdsArray.length > 0) {
         // Find friends of friends (excluding current user and existing friends)
@@ -437,7 +462,7 @@ router.post('/suggested', authenticateToken, async (req, res) => {
         if (sentRequests) {
           sentRequests.forEach(request => {
             if (request.recipient && 
-                !friendIds.has(request.recipient.id) && 
+                !excludedUserIds.has(request.recipient.id) && 
                 !allUsers.has(request.recipient.id) &&
                 request.recipient.id !== currentUserId) {
               friendsOfFriendsSet.add(request.recipient.id);
@@ -451,7 +476,7 @@ router.post('/suggested', authenticateToken, async (req, res) => {
         if (receivedRequests) {
           receivedRequests.forEach(request => {
             if (request.sender && 
-                !friendIds.has(request.sender.id) && 
+                !excludedUserIds.has(request.sender.id) && 
                 !allUsers.has(request.sender.id) &&
                 request.sender.id !== currentUserId) {
               friendsOfFriendsSet.add(request.sender.id);
