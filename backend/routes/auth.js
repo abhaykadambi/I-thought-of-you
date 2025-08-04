@@ -317,12 +317,12 @@ router.get('/profile', authenticateToken, async (req, res) => {
   }
 });
 
-// Update current user profile (name, avatar, phone)
+// Update current user profile (name, avatar, phone, username)
 router.put('/profile', authenticateToken, async (req, res) => {
   try {
-    const { name, avatar, phone } = req.body;
+    const { name, avatar, phone, username } = req.body;
     // Only log avatar length, not the full data
-    console.log('Profile update request:', { name, phone, avatarLength: avatar ? avatar.length : 0 });
+    console.log('Profile update request:', { name, phone, username, avatarLength: avatar ? avatar.length : 0 });
     
     if (!name) {
       return res.status(400).json({ error: 'Name is required' });
@@ -344,6 +344,28 @@ router.put('/profile', authenticateToken, async (req, res) => {
       }
       updates.phone = phone || null;
     }
+    if (username !== undefined) {
+      // Validate username format
+      const usernameRegex = /^[a-zA-Z0-9_]{3,32}$/;
+      if (!usernameRegex.test(username)) {
+        return res.status(400).json({ error: 'Username must be 3-32 characters long and contain only letters, numbers, and underscores' });
+      }
+      
+      // Check if username is already taken (case-insensitive)
+      const normalizedUsername = username.toLowerCase();
+      const { data: existingUser, error: checkError } = await supabase
+        .from('users')
+        .select('id, username')
+        .ilike('username', normalizedUsername)
+        .neq('id', req.user.userId)
+        .single();
+      
+      if (existingUser) {
+        return res.status(400).json({ error: 'Username is already taken' });
+      }
+      
+      updates.username = normalizedUsername;
+    }
     updates.updated_at = new Date().toISOString();
 
     // Only log avatar length in updates
@@ -353,7 +375,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
       .from('users')
       .update(updates)
       .eq('id', req.user.userId)
-      .select('id, email, name, avatar, phone, created_at')
+      .select('id, email, name, username, avatar, phone, created_at')
       .single();
 
     if (error) {

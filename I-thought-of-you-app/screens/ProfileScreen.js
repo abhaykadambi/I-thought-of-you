@@ -55,11 +55,14 @@ export default function ProfileScreen({ navigation }) {
   const [user, setUser] = useState(null);
   const [pinnedThoughts, setPinnedThoughts] = useState([]);
   const [editedName, setEditedName] = useState('');
+  const [editedUsername, setEditedUsername] = useState('');
   const [editedAvatar, setEditedAvatar] = useState('');
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [usernameChecking, setUsernameChecking] = useState(false);
+  const [usernameAvailable, setUsernameAvailable] = useState(true);
   const lastPinnedUpdate = useRef(Date.now());
 
   // Fetch profile and pinned thoughts in parallel
@@ -72,6 +75,7 @@ export default function ProfileScreen({ navigation }) {
           const { user: profile } = await authAPI.getProfile();
           setUser(profile);
           setEditedName(profile.name || '');
+          setEditedUsername(profile.username || '');
           setEditedAvatar(profile.avatar || '');
         } catch (error) {
           console.error('Error loading profile:', error);
@@ -173,9 +177,27 @@ export default function ProfileScreen({ navigation }) {
   };
 
   const handleSave = async () => {
+    // Validate username before saving
+    if (editedUsername !== user?.username) {
+      if (!usernameAvailable) {
+        Alert.alert('Error', 'Username is not available. Please choose a different username.');
+        return;
+      }
+      
+      const usernameRegex = /^[a-zA-Z0-9_]{3,32}$/;
+      if (!usernameRegex.test(editedUsername)) {
+        Alert.alert('Error', 'Username must be 3-32 characters long and contain only letters, numbers, and underscores.');
+        return;
+      }
+    }
+    
     try {
-      await authAPI.updateProfile({ name: editedName, avatar: editedAvatar });
-      setUser((prev) => ({ ...prev, name: editedName, avatar: editedAvatar }));
+      await authAPI.updateProfile({ 
+        name: editedName, 
+        username: editedUsername,
+        avatar: editedAvatar 
+      });
+      setUser((prev) => ({ ...prev, name: editedName, username: editedUsername, avatar: editedAvatar }));
       setEditMode(false);
       await loadProfile();
     } catch (error) {
@@ -185,9 +207,37 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
+  // Check username availability
+  const checkUsernameAvailability = async (username) => {
+    if (!username || username === user?.username) {
+      setUsernameAvailable(true);
+      return;
+    }
+    
+    // Validate username format
+    const usernameRegex = /^[a-zA-Z0-9_]{3,32}$/;
+    if (!usernameRegex.test(username)) {
+      setUsernameAvailable(false);
+      return;
+    }
+    
+    setUsernameChecking(true);
+    try {
+      const response = await authAPI.checkUsername(username);
+      setUsernameAvailable(response.available);
+    } catch (error) {
+      console.error('Error checking username:', error);
+      setUsernameAvailable(false);
+    } finally {
+      setUsernameChecking(false);
+    }
+  };
+
   const handleCancel = () => {
     setEditedName(user?.name || '');
+    setEditedUsername(user?.username || '');
     setEditedAvatar(user?.avatar || '');
+    setUsernameAvailable(true);
     setEditMode(false);
   };
 
@@ -296,6 +346,33 @@ export default function ProfileScreen({ navigation }) {
                 placeholder="Your Name"
                 placeholderTextColor="#b0a99f"
               />
+              <View style={styles.usernameInputContainer}>
+                <TextInput
+                  style={[
+                    styles.usernameInput,
+                    !usernameAvailable && styles.usernameInputError
+                  ]}
+                  value={editedUsername}
+                  onChangeText={(text) => {
+                    setEditedUsername(text);
+                    // Debounce username availability check
+                    setTimeout(() => checkUsernameAvailability(text), 500);
+                  }}
+                  placeholder="Username"
+                  placeholderTextColor="#b0a99f"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {usernameChecking && (
+                  <ActivityIndicator size="small" color="#4a7cff" style={styles.usernameCheckIndicator} />
+                )}
+                {!usernameAvailable && editedUsername !== user?.username && (
+                  <Text style={styles.usernameErrorText}>Username not available</Text>
+                )}
+                {usernameAvailable && editedUsername !== user?.username && editedUsername && (
+                  <Text style={styles.usernameSuccessText}>Username available</Text>
+                )}
+              </View>
             </>
           ) : (
             <>
@@ -595,5 +672,41 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     fontFamily: headerFontFamily,
+  },
+  usernameInputContainer: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  usernameInput: {
+    fontSize: 18,
+    fontFamily: headerFontFamily,
+    color: '#2c2c2c',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ece6da',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginBottom: 4,
+    textAlign: 'center',
+    width: 180,
+  },
+  usernameInputError: {
+    borderColor: '#e74c3c',
+  },
+  usernameCheckIndicator: {
+    marginTop: 4,
+  },
+  usernameErrorText: {
+    color: '#e74c3c',
+    fontSize: 12,
+    fontFamily: headerFontFamily,
+    marginTop: 2,
+  },
+  usernameSuccessText: {
+    color: '#27ae60',
+    fontSize: 12,
+    fontFamily: headerFontFamily,
+    marginTop: 2,
   },
 }); 
