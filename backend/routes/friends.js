@@ -373,36 +373,54 @@ router.post('/suggested', authenticateToken, async (req, res) => {
       
       if (friendIdsArray.length > 0) {
         // Find friends of friends (excluding current user and existing friends)
-        let query = supabase
+        // This finds people who are friends with any of your current friends
+        const { data: friendsOfFriends, error: fofError } = await supabase
           .from('friend_requests')
           .select(`
             recipient:users!friend_requests_recipient_id_fkey(
               id, name, email, username, avatar, created_at
+            ),
+            sender:users!friend_requests_sender_id_fkey(
+              id, name, email, username, avatar, created_at
             )
           `)
-          .in('sender_id', friendIdsArray)
+          .or(`sender_id.in.(${friendIdsArray.join(',')}),recipient_id.in.(${friendIdsArray.join(',')})`)
           .eq('status', 'accepted')
+          .neq('sender_id', currentUserId)
           .neq('recipient_id', currentUserId);
-        
-        // Only add the NOT IN clause if we have friends to exclude
-        if (friendIdsArray.length > 0) {
-          query = query.not('recipient_id', 'in', `(${friendIdsArray.join(',')})`);
-        }
-        
-        const { data: friendsOfFriends, error: fofError } = await query.limit(MAX_SUGGESTIONS - allUsers.size);
         
         if (fofError) {
           console.error('Friends-of-friends query error:', fofError);
         } else {
-          console.log(`Found ${friendsOfFriends?.length || 0} friends-of-friends`);
+          console.log(`Found ${friendsOfFriends?.length || 0} friend relationships involving your friends`);
+          
+          // Extract unique users who are friends with your friends
+          const friendsOfFriendsSet = new Set();
+          
           if (friendsOfFriends) {
             friendsOfFriends.forEach(fof => {
-              if (fof.recipient && !allUsers.has(fof.recipient.id) && !friendIds.has(fof.recipient.id)) {
-                allUsers.set(fof.recipient.id, fof.recipient);
-                console.log(`Added friend-of-friend: ${fof.recipient.name} (${fof.recipient.username})`);
+              // Get the other person in the friendship (not your friend)
+              let otherPerson = null;
+              if (friendIds.has(fof.sender_id)) {
+                // Your friend is the sender, so the recipient is the friend-of-friend
+                otherPerson = fof.recipient;
+              } else if (friendIds.has(fof.recipient_id)) {
+                // Your friend is the recipient, so the sender is the friend-of-friend
+                otherPerson = fof.sender;
+              }
+              
+              if (otherPerson && 
+                  !friendIds.has(otherPerson.id) && 
+                  !allUsers.has(otherPerson.id) &&
+                  otherPerson.id !== currentUserId) {
+                friendsOfFriendsSet.add(otherPerson.id);
+                allUsers.set(otherPerson.id, otherPerson);
+                console.log(`Added friend-of-friend: ${otherPerson.name} (${otherPerson.username}) via friendship with your friend`);
               }
             });
           }
+          
+          console.log(`Total unique friends-of-friends found: ${friendsOfFriendsSet.size}`);
         }
       } else {
         console.log('No friends found, skipping friends-of-friends search');
