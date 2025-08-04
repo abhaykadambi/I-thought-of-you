@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Platform, Alert, Share, ActivityIndicator, SectionList } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Platform, Alert, Share, ActivityIndicator, SectionList, RefreshControl } from 'react-native';
 import { friendsAPI } from '../services/api';
 import * as Contacts from 'expo-contacts';
 import { useNavigation } from '@react-navigation/native';
@@ -21,6 +21,7 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
   const [responding, setResponding] = useState(null);
   const [addingFriend, setAddingFriend] = useState(null);
   const [removingItems, setRemovingItems] = useState(new Set());
+  const [refreshing, setRefreshing] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -86,6 +87,21 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
       Alert.alert('Error', 'Failed to load friends. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        loadFriends(),
+        loadIncomingRequests(),
+        loadSuggestedFriends()
+      ]);
+    } catch (error) {
+      console.error('Error refreshing:', error);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -226,9 +242,6 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
         return newSet;
       });
       
-      // Show success message
-      Alert.alert('Friend Request Sent', `Friend request sent to ${friend.name}!`);
-      
       // Reload friends list to show the new friend if they accept
       await loadFriends();
       
@@ -293,9 +306,6 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
               <Text style={styles.suggestedUsername}>@{item.username}</Text>
             )}
             {/* Show suggestion source indicator */}
-            {isDirectMatch && (
-              <Text style={styles.suggestionSource}>📱 Contact</Text>
-            )}
             {isPatternMatch && (
               <Text style={styles.suggestionSource}>🔍 Similar username</Text>
             )}
@@ -418,6 +428,14 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         stickySectionHeadersEnabled={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#4a7cff']}
+            tintColor="#4a7cff"
+          />
+        }
       />
     </View>
   );
