@@ -110,42 +110,7 @@ export default function SettingsScreen({ navigation }) {
           <Text style={styles.settingText}>Privacy</Text>
           <Text style={styles.settingArrow}>→</Text>
         </TouchableOpacity>
-        <View style={styles.separator} />
-        <TouchableOpacity 
-          style={styles.settingRow} 
-          onPress={async () => {
-            try {
-              // Frontend debug
-              const frontendDebug = await notificationService.debugNotificationSetup();
-              
-              // Backend debug
-              const backendDebug = await notificationsAPI.debug();
-              
-              // Test notification
-              const testResult = await notificationsAPI.test();
-              
-              Alert.alert(
-                'Notification Debug Info',
-                `Frontend:\n` +
-                `• Permission: ${frontendDebug.permissionStatus}\n` +
-                `• Has Token: ${frontendDebug.hasToken}\n` +
-                `• Local Test: ${frontendDebug.testNotificationSent ? '✓' : '✗'}\n\n` +
-                `Backend:\n` +
-                `• User Token: ${backendDebug.user.hasPushToken ? '✓' : '✗'}\n` +
-                `• Remote Test: ${testResult.message ? '✓' : '✗'}\n\n` +
-                `Check console for detailed logs.`
-              );
-            } catch (error) {
-              Alert.alert('Debug Error', error.message);
-            }
-          }}
-        >
-          <View style={styles.settingContent}>
-            <Text style={[styles.settingText, { color: '#e74c3c' }]}>🔧 Debug Notifications</Text>
-            <Text style={styles.adminSubtext}>Test notification setup</Text>
-          </View>
-          <Text style={styles.settingArrow}>→</Text>
-        </TouchableOpacity>
+
         {isAdmin && (
           <>
             <View style={styles.separator} />

@@ -19,6 +19,8 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
   const [loadingSuggested, setLoadingSuggested] = useState(false);
   const [incomingRequests, setIncomingRequests] = useState([]);
   const [responding, setResponding] = useState(null);
+  const [addingFriend, setAddingFriend] = useState(null);
+  const [removingItems, setRemovingItems] = useState(new Set());
 
   useFocusEffect(
     React.useCallback(() => {
@@ -188,6 +190,63 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
     }
   };
 
+  const handleAddSuggestedFriend = async (friend) => {
+    if (addingFriend === friend.id) return; // Prevent double-tap
+    
+    setAddingFriend(friend.id);
+    setRemovingItems(prev => new Set([...prev, friend.id]));
+    
+    try {
+      console.log('Adding friend with data:', friend);
+      
+      // Determine the best identifier to use for the friend request
+      let contactIdentifier;
+      if (friend.username) {
+        contactIdentifier = friend.username;
+      } else if (friend.email) {
+        contactIdentifier = friend.email;
+      } else if (friend.phone) {
+        contactIdentifier = friend.phone;
+      } else {
+        throw new Error('No valid contact information found for this user');
+      }
+      
+      console.log('Using contact identifier:', contactIdentifier);
+      
+      // Send friend request
+      await friendsAPI.sendFriendRequest(contactIdentifier);
+      
+      // Remove from suggested friends list immediately after successful request
+      setSuggestedFriends(prev => prev.filter(f => f.id !== friend.id));
+      
+      // Clear the removing state
+      setRemovingItems(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(friend.id);
+        return newSet;
+      });
+      
+      // Show success message
+      Alert.alert('Friend Request Sent', `Friend request sent to ${friend.name}!`);
+      
+      // Reload friends list to show the new friend if they accept
+      await loadFriends();
+      
+    } catch (error) {
+      console.error('Error sending friend request:', error);
+      Alert.alert('Error', 'Failed to send friend request. Please try again.');
+      
+      // Remove from removing items if there was an error
+      setRemovingItems(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(friend.id);
+        return newSet;
+      });
+    } finally {
+      setAddingFriend(null);
+    }
+  };
+
   const renderItem = ({ item }) => (
     <TouchableOpacity 
       style={styles.friendCard}
@@ -213,6 +272,8 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
     const isDirectMatch = item.email || item.phone; // Direct contact match
     const isPatternMatch = !isDirectMatch && item.username; // Username pattern match
     const isFriendOfFriend = !isDirectMatch && !isPatternMatch; // Friends-of-friends
+    
+    const isAdding = addingFriend === item.id;
     
     return (
       <View style={styles.suggestedCard}>
@@ -243,8 +304,19 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
             )}
           </View>
         </View>
-        <TouchableOpacity style={styles.addButton}>
-          <Text style={styles.addButtonText}>Add</Text>
+        <TouchableOpacity 
+          style={[
+            styles.addButton,
+            isAdding && styles.addButtonDisabled
+          ]}
+          onPress={() => handleAddSuggestedFriend(item)}
+          disabled={isAdding}
+        >
+          {isAdding ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.addButtonText}>Add</Text>
+          )}
         </TouchableOpacity>
       </View>
     );
@@ -259,9 +331,9 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
 
   // SectionList data
   const sections = [
-    {
+    ...(suggestedFriends.length > 0 || loadingSuggested ? [{
       title: 'Suggested Friends',
-      data: suggestedFriends,
+      data: suggestedFriends.filter(friend => !removingItems.has(friend.id)),
       renderItem: renderSuggestedItem,
       emptyComponent: (
         loadingSuggested ? (
@@ -270,7 +342,7 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
           <Text style={styles.suggestedEmpty}>No suggested friends found. We'll show contacts, similar usernames, and friends of friends!</Text>
         )
       ),
-    },
+    }] : []),
     {
       title: 'Friends',
       data: friends,
@@ -334,6 +406,7 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
       <SectionList
         sections={sections}
         keyExtractor={item => item.id}
+        extraData={[suggestedFriends.length, removingItems.size, addingFriend]}
         renderSectionHeader={({ section: { title } }) => (
           title === 'Friends' ? null : <Text style={styles.suggestedHeader}>{title}</Text>
         )}
@@ -442,10 +515,11 @@ const styles = StyleSheet.create({
     fontWeight: '300',
   },
   emptyContainer: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
+    paddingTop: 40,
+    paddingBottom: 80,
   },
   emptyTitle: {
     fontSize: 24,
@@ -460,7 +534,7 @@ const styles = StyleSheet.create({
     fontFamily: headerFontFamily,
     color: '#6b6b6b',
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 60,
     lineHeight: 24,
   },
   suggestedSection: {
@@ -529,6 +603,10 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 13,
+  },
+  addButtonDisabled: {
+    backgroundColor: '#b0a99f',
+    opacity: 0.7,
   },
   headerRequestButton: {
     backgroundColor: '#fff',
