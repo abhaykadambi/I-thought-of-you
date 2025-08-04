@@ -218,16 +218,16 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
       <View style={styles.suggestedCard}>
         <View style={styles.suggestedCardLeft}>
           {item.avatar ? (
-            <Image source={{ uri: item.avatar }} style={styles.avatar} />
+            <Image source={{ uri: item.avatar }} style={styles.suggestedAvatar} />
           ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarText}>
+            <View style={styles.suggestedAvatarPlaceholder}>
+              <Text style={styles.suggestedAvatarText}>
                 {item.name.charAt(0).toUpperCase()}
               </Text>
             </View>
           )}
           <View style={styles.suggestedUserInfo}>
-            <Text style={styles.friendName}>{item.name}</Text>
+            <Text style={[styles.friendName, { fontSize: 16 }]}>{item.name}</Text>
             {item.username && (
               <Text style={styles.suggestedUsername}>@{item.username}</Text>
             )}
@@ -344,6 +344,7 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
         }
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        stickySectionHeadersEnabled={false}
       />
     </View>
   );
@@ -420,6 +421,13 @@ const styles = StyleSheet.create({
     marginRight: 16,
     backgroundColor: '#ece6da',
   },
+  suggestedAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 12,
+    backgroundColor: '#ece6da',
+  },
   friendName: {
     fontSize: 18,
     fontFamily: headerFontFamily,
@@ -461,11 +469,11 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   suggestedHeader: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#2c2c2c',
-    marginTop: 20,
-    marginBottom: 10,
+    marginTop: 16,
+    marginBottom: 8,
     fontFamily: headerFontFamily,
   },
   suggestedEmpty: {
@@ -483,10 +491,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#f0f4ff',
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    marginBottom: 12,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 8,
   },
   suggestedCardLeft: {
     flexDirection: 'row',
@@ -495,32 +503,32 @@ const styles = StyleSheet.create({
   },
   suggestedUserInfo: {
     flex: 1,
-    marginLeft: 16,
+    marginLeft: 12,
   },
   suggestedUsername: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
     fontFamily: headerFontFamily,
-    marginTop: 2,
+    marginTop: 1,
   },
   suggestionSource: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#4a7cff',
     fontFamily: headerFontFamily,
-    marginTop: 2,
+    marginTop: 1,
     fontWeight: '500',
   },
   addButton: {
     backgroundColor: '#4a7cff',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    marginLeft: 12,
+    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginLeft: 8,
   },
   addButtonText: {
     color: '#fff',
     fontWeight: 'bold',
-    fontSize: 15,
+    fontSize: 13,
   },
   headerRequestButton: {
     backgroundColor: '#fff',
@@ -598,8 +606,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  suggestedAvatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 12,
+    backgroundColor: '#4a7cff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   avatarText: {
     fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  suggestedAvatarText: {
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#fff',
   },

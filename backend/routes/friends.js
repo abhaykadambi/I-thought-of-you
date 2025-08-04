@@ -369,10 +369,11 @@ router.post('/suggested', authenticateToken, async (req, res) => {
       
       // Convert friendIds Set to array for the query
       const friendIdsArray = Array.from(friendIds);
+      console.log(`Current user has ${friendIdsArray.length} friends:`, friendIdsArray);
       
       if (friendIdsArray.length > 0) {
         // Find friends of friends (excluding current user and existing friends)
-        const { data: friendsOfFriends } = await supabase
+        let query = supabase
           .from('friend_requests')
           .select(`
             recipient:users!friend_requests_recipient_id_fkey(
@@ -381,26 +382,47 @@ router.post('/suggested', authenticateToken, async (req, res) => {
           `)
           .in('sender_id', friendIdsArray)
           .eq('status', 'accepted')
-          .neq('recipient_id', currentUserId)
-          .not('recipient_id', 'in', `(${friendIdsArray.join(',')})`)
-          .limit(MAX_SUGGESTIONS - allUsers.size);
+          .neq('recipient_id', currentUserId);
         
-        if (friendsOfFriends) {
-          friendsOfFriends.forEach(fof => {
-            if (fof.recipient && !allUsers.has(fof.recipient.id) && !friendIds.has(fof.recipient.id)) {
-              allUsers.set(fof.recipient.id, fof.recipient);
-            }
-          });
+        // Only add the NOT IN clause if we have friends to exclude
+        if (friendIdsArray.length > 0) {
+          query = query.not('recipient_id', 'in', `(${friendIdsArray.join(',')})`);
         }
+        
+        const { data: friendsOfFriends, error: fofError } = await query.limit(MAX_SUGGESTIONS - allUsers.size);
+        
+        if (fofError) {
+          console.error('Friends-of-friends query error:', fofError);
+        } else {
+          console.log(`Found ${friendsOfFriends?.length || 0} friends-of-friends`);
+          if (friendsOfFriends) {
+            friendsOfFriends.forEach(fof => {
+              if (fof.recipient && !allUsers.has(fof.recipient.id) && !friendIds.has(fof.recipient.id)) {
+                allUsers.set(fof.recipient.id, fof.recipient);
+                console.log(`Added friend-of-friend: ${fof.recipient.name} (${fof.recipient.username})`);
+              }
+            });
+          }
+        }
+      } else {
+        console.log('No friends found, skipping friends-of-friends search');
       }
     }
+
+
 
     // Prioritize direct matches first, then pattern matches, then friends-of-friends
     const priorityList = Array.from(priorityUsers.values());
     const remainingUsers = Array.from(allUsers.values()).filter(user => !priorityUsers.has(user.id));
     const finalUsers = [...priorityList, ...remainingUsers].slice(0, MAX_SUGGESTIONS);
 
-    console.log(`Final suggested friends: ${finalUsers.length} (${priorityUsers.size} direct matches, ${finalUsers.length - priorityUsers.size} pattern/friends-of-friends)`);
+    console.log(`Final suggested friends: ${finalUsers.length}/${MAX_SUGGESTIONS} (${priorityUsers.size} direct matches, ${finalUsers.length - priorityUsers.size} pattern/friends-of-friends)`);
+    console.log('Final breakdown:', {
+      directMatches: priorityUsers.size,
+      otherMatches: finalUsers.length - priorityUsers.size,
+      totalFound: allUsers.size,
+      finalReturned: finalUsers.length
+    });
 
     res.json({ users: finalUsers });
   } catch (error) {
