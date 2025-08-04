@@ -395,54 +395,73 @@ router.post('/suggested', authenticateToken, async (req, res) => {
       if (friendIdsArray.length > 0) {
         // Find friends of friends (excluding current user and existing friends)
         // This finds people who are friends with any of your current friends
-        const { data: friendsOfFriends, error: fofError } = await supabase
+        console.log(`Searching for friends-of-friends using friend IDs: ${friendIdsArray.join(', ')}`);
+        
+        // Query 1: Find friend requests where your friends are senders
+        const { data: sentRequests, error: sentError } = await supabase
           .from('friend_requests')
           .select(`
             recipient:users!friend_requests_recipient_id_fkey(
               id, name, email, username, avatar, created_at
-            ),
+            )
+          `)
+          .in('sender_id', friendIdsArray)
+          .eq('status', 'accepted')
+          .neq('recipient_id', currentUserId);
+        
+        // Query 2: Find friend requests where your friends are recipients
+        const { data: receivedRequests, error: receivedError } = await supabase
+          .from('friend_requests')
+          .select(`
             sender:users!friend_requests_sender_id_fkey(
               id, name, email, username, avatar, created_at
             )
           `)
-          .or(`sender_id.in.(${friendIdsArray.join(',')}),recipient_id.in.(${friendIdsArray.join(',')})`)
+          .in('recipient_id', friendIdsArray)
           .eq('status', 'accepted')
-          .neq('sender_id', currentUserId)
-          .neq('recipient_id', currentUserId);
+          .neq('sender_id', currentUserId);
         
-        if (fofError) {
-          console.error('Friends-of-friends query error:', fofError);
-        } else {
-          console.log(`Found ${friendsOfFriends?.length || 0} friend relationships involving your friends`);
-          
-          // Extract unique users who are friends with your friends
-          const friendsOfFriendsSet = new Set();
-          
-          if (friendsOfFriends) {
-            friendsOfFriends.forEach(fof => {
-              // Get the other person in the friendship (not your friend)
-              let otherPerson = null;
-              if (friendIds.has(fof.sender_id)) {
-                // Your friend is the sender, so the recipient is the friend-of-friend
-                otherPerson = fof.recipient;
-              } else if (friendIds.has(fof.recipient_id)) {
-                // Your friend is the recipient, so the sender is the friend-of-friend
-                otherPerson = fof.sender;
-              }
-              
-              if (otherPerson && 
-                  !friendIds.has(otherPerson.id) && 
-                  !allUsers.has(otherPerson.id) &&
-                  otherPerson.id !== currentUserId) {
-                friendsOfFriendsSet.add(otherPerson.id);
-                allUsers.set(otherPerson.id, otherPerson);
-                console.log(`Added friend-of-friend: ${otherPerson.name} (${otherPerson.username}) via friendship with your friend`);
-              }
-            });
-          }
-          
-          console.log(`Total unique friends-of-friends found: ${friendsOfFriendsSet.size}`);
+        if (sentError) {
+          console.error('Sent requests query error:', sentError);
         }
+        if (receivedError) {
+          console.error('Received requests query error:', receivedError);
+        }
+        
+        console.log(`Found ${sentRequests?.length || 0} sent requests and ${receivedRequests?.length || 0} received requests`);
+        
+        // Extract unique users who are friends with your friends
+        const friendsOfFriendsSet = new Set();
+        
+        // Process sent requests (your friends sent requests to others)
+        if (sentRequests) {
+          sentRequests.forEach(request => {
+            if (request.recipient && 
+                !friendIds.has(request.recipient.id) && 
+                !allUsers.has(request.recipient.id) &&
+                request.recipient.id !== currentUserId) {
+              friendsOfFriendsSet.add(request.recipient.id);
+              allUsers.set(request.recipient.id, request.recipient);
+              console.log(`Added friend-of-friend (sent): ${request.recipient.name} (${request.recipient.username})`);
+            }
+          });
+        }
+        
+        // Process received requests (others sent requests to your friends)
+        if (receivedRequests) {
+          receivedRequests.forEach(request => {
+            if (request.sender && 
+                !friendIds.has(request.sender.id) && 
+                !allUsers.has(request.sender.id) &&
+                request.sender.id !== currentUserId) {
+              friendsOfFriendsSet.add(request.sender.id);
+              allUsers.set(request.sender.id, request.sender);
+              console.log(`Added friend-of-friend (received): ${request.sender.name} (${request.sender.username})`);
+            }
+          });
+        }
+        
+        console.log(`Total unique friends-of-friends found: ${friendsOfFriendsSet.size}`);
       } else {
         console.log('No friends found, skipping friends-of-friends search');
       }
