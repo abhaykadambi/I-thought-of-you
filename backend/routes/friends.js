@@ -242,8 +242,11 @@ router.post('/suggested', authenticateToken, async (req, res) => {
 
     // Step 1: Find users from direct contact matches (emails, phone numbers, exact usernames)
     if (emails.length > 0 || phoneNumbers.length > 0 || usernames.length > 0) {
+      console.log(`Step 1: Searching for direct contact matches`);
+      
       // Query by emails
       if (emails.length > 0) {
+        console.log(`Searching by ${emails.length} emails`);
         const { data: emailUsers, error: emailError } = await supabase
           .from('users')
           .select('id, name, email, username, avatar, created_at')
@@ -253,11 +256,15 @@ router.post('/suggested', authenticateToken, async (req, res) => {
         if (emailError) {
           console.error('Email query error:', emailError);
         } else {
+          console.log(`Found ${emailUsers?.length || 0} users by email`);
           emailUsers?.forEach(user => {
             // Only add if not already a friend
             if (!friendIds.has(user.id)) {
               allUsers.set(user.id, user);
               priorityUsers.set(user.id, user); // Mark as high priority
+              console.log(`Added email match: ${user.name} (${user.email})`);
+            } else {
+              console.log(`Skipped email match (already friend): ${user.name} (${user.email})`);
             }
           });
         }
@@ -265,6 +272,7 @@ router.post('/suggested', authenticateToken, async (req, res) => {
 
       // Query by phone numbers
       if (phoneNumbers.length > 0) {
+        console.log(`Searching by ${phoneNumbers.length} phone numbers`);
         const { data: phoneUsers, error: phoneError } = await supabase
           .from('users')
           .select('id, name, email, username, avatar, created_at')
@@ -274,11 +282,15 @@ router.post('/suggested', authenticateToken, async (req, res) => {
         if (phoneError) {
           console.error('Phone query error:', phoneError);
         } else {
+          console.log(`Found ${phoneUsers?.length || 0} users by phone`);
           phoneUsers?.forEach(user => {
             // Only add if not already a friend
             if (!friendIds.has(user.id)) {
               allUsers.set(user.id, user);
               priorityUsers.set(user.id, user); // Mark as high priority
+              console.log(`Added phone match: ${user.name} (${user.phone})`);
+            } else {
+              console.log(`Skipped phone match (already friend): ${user.name} (${user.phone})`);
             }
           });
         }
@@ -286,6 +298,7 @@ router.post('/suggested', authenticateToken, async (req, res) => {
 
       // Query by exact usernames
       if (usernames.length > 0) {
+        console.log(`Searching by ${usernames.length} usernames`);
         const normalizedUsernames = usernames.map(u => u.toLowerCase());
         const { data: usernameUsers, error: usernameError } = await supabase
           .from('users')
@@ -296,15 +309,21 @@ router.post('/suggested', authenticateToken, async (req, res) => {
         if (usernameError) {
           console.error('Username query error:', usernameError);
         } else {
+          console.log(`Found ${usernameUsers?.length || 0} users by username`);
           usernameUsers?.forEach(user => {
             // Only add if not already a friend
             if (!friendIds.has(user.id)) {
               allUsers.set(user.id, user);
               priorityUsers.set(user.id, user); // Mark as high priority
+              console.log(`Added username match: ${user.name} (@${user.username})`);
+            } else {
+              console.log(`Skipped username match (already friend): ${user.name} (@${user.username})`);
             }
           });
         }
       }
+      
+      console.log(`Step 1 complete: Found ${allUsers.size} direct contact matches (${priorityUsers.size} priority users)`);
     }
 
     // Step 2: Find users with similar usernames to contact names (lower priority)
@@ -361,6 +380,8 @@ router.post('/suggested', authenticateToken, async (req, res) => {
           });
         }
       }
+      
+      console.log(`Step 2 complete: Total users after pattern matching: ${allUsers.size}`);
     }
 
     // Step 3: If we still have fewer than MAX_SUGGESTIONS, add friends-of-friends
@@ -425,6 +446,8 @@ router.post('/suggested', authenticateToken, async (req, res) => {
       } else {
         console.log('No friends found, skipping friends-of-friends search');
       }
+      
+      console.log(`Step 3 complete: Total users after friends-of-friends: ${allUsers.size}`);
     }
 
 
