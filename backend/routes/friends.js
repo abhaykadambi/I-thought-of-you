@@ -220,6 +220,26 @@ router.post('/suggested', authenticateToken, async (req, res) => {
     let allUsers = new Map(); // Use Map to avoid duplicates
     let priorityUsers = new Map(); // High priority users (direct matches)
 
+    // Get current user's friends to exclude them from suggestions
+    const { data: userFriends } = await supabase
+      .from('friend_requests')
+      .select('recipient_id, sender_id')
+      .or(`sender_id.eq.${currentUserId},recipient_id.eq.${currentUserId}`)
+      .eq('status', 'accepted');
+    
+    const friendIds = new Set();
+    if (userFriends) {
+      userFriends.forEach(friend => {
+        if (friend.sender_id === currentUserId) {
+          friendIds.add(friend.recipient_id);
+        } else {
+          friendIds.add(friend.sender_id);
+        }
+      });
+    }
+    
+    console.log(`Excluding ${friendIds.size} existing friends from suggestions`);
+
     // Step 1: Find users from direct contact matches (emails, phone numbers, exact usernames)
     if (emails.length > 0 || phoneNumbers.length > 0 || usernames.length > 0) {
       // Query by emails
@@ -234,8 +254,11 @@ router.post('/suggested', authenticateToken, async (req, res) => {
           console.error('Email query error:', emailError);
         } else {
           emailUsers?.forEach(user => {
-            allUsers.set(user.id, user);
-            priorityUsers.set(user.id, user); // Mark as high priority
+            // Only add if not already a friend
+            if (!friendIds.has(user.id)) {
+              allUsers.set(user.id, user);
+              priorityUsers.set(user.id, user); // Mark as high priority
+            }
           });
         }
       }
@@ -252,8 +275,11 @@ router.post('/suggested', authenticateToken, async (req, res) => {
           console.error('Phone query error:', phoneError);
         } else {
           phoneUsers?.forEach(user => {
-            allUsers.set(user.id, user);
-            priorityUsers.set(user.id, user); // Mark as high priority
+            // Only add if not already a friend
+            if (!friendIds.has(user.id)) {
+              allUsers.set(user.id, user);
+              priorityUsers.set(user.id, user); // Mark as high priority
+            }
           });
         }
       }
@@ -271,8 +297,11 @@ router.post('/suggested', authenticateToken, async (req, res) => {
           console.error('Username query error:', usernameError);
         } else {
           usernameUsers?.forEach(user => {
-            allUsers.set(user.id, user);
-            priorityUsers.set(user.id, user); // Mark as high priority
+            // Only add if not already a friend
+            if (!friendIds.has(user.id)) {
+              allUsers.set(user.id, user);
+              priorityUsers.set(user.id, user); // Mark as high priority
+            }
           });
         }
       }
@@ -325,7 +354,7 @@ router.post('/suggested', authenticateToken, async (req, res) => {
           console.error('Username pattern query error:', similarError);
         } else if (similarUsers) {
           similarUsers.forEach(user => {
-            if (!allUsers.has(user.id)) {
+            if (!allUsers.has(user.id) && !friendIds.has(user.id)) {
               allUsers.set(user.id, user);
               // Don't mark as priority - these are pattern matches
             }
@@ -338,16 +367,10 @@ router.post('/suggested', authenticateToken, async (req, res) => {
     if (allUsers.size < MAX_SUGGESTIONS) {
       console.log(`Found ${allUsers.size} total matches, adding friends-of-friends to reach ${MAX_SUGGESTIONS}`);
       
-      // Get current user's friends
-      const { data: userFriends } = await supabase
-        .from('friend_requests')
-        .select('recipient_id')
-        .eq('sender_id', currentUserId)
-        .eq('status', 'accepted');
+      // Convert friendIds Set to array for the query
+      const friendIdsArray = Array.from(friendIds);
       
-      const friendIds = userFriends?.map(f => f.recipient_id) || [];
-      
-      if (friendIds.length > 0) {
+      if (friendIdsArray.length > 0) {
         // Find friends of friends (excluding current user and existing friends)
         const { data: friendsOfFriends } = await supabase
           .from('friend_requests')
@@ -356,15 +379,15 @@ router.post('/suggested', authenticateToken, async (req, res) => {
               id, name, email, username, avatar, created_at
             )
           `)
-          .in('sender_id', friendIds)
+          .in('sender_id', friendIdsArray)
           .eq('status', 'accepted')
           .neq('recipient_id', currentUserId)
-          .not('recipient_id', 'in', `(${friendIds.join(',')})`)
+          .not('recipient_id', 'in', `(${friendIdsArray.join(',')})`)
           .limit(MAX_SUGGESTIONS - allUsers.size);
         
         if (friendsOfFriends) {
           friendsOfFriends.forEach(fof => {
-            if (fof.recipient && !allUsers.has(fof.recipient.id)) {
+            if (fof.recipient && !allUsers.has(fof.recipient.id) && !friendIds.has(fof.recipient.id)) {
               allUsers.set(fof.recipient.id, fof.recipient);
             }
           });

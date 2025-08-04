@@ -154,12 +154,7 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
               usernames: usernames.length
             });
             
-            // Remove phone numbers and emails of existing friends
-            const friendPhones = friends.map(f => f.phone ? f.phone.replace(/[^\d]/g, '') : null).filter(Boolean);
-            const friendEmails = friends.map(f => f.email).filter(Boolean);
-            
-            phoneNumbers = phoneNumbers.filter(num => !friendPhones.includes(num));
-            emails = emails.filter(email => !friendEmails.includes(email));
+            // Note: Backend now handles excluding existing friends from all queries
           }
         }
       } catch (contactError) {
@@ -265,12 +260,6 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
   // SectionList data
   const sections = [
     {
-      title: 'Friends',
-      data: friends,
-      renderItem: renderItem,
-      emptyComponent: renderEmptyState(),
-    },
-    {
       title: 'Suggested Friends',
       data: suggestedFriends,
       renderItem: renderSuggestedItem,
@@ -281,6 +270,12 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
           <Text style={styles.suggestedEmpty}>No suggested friends found. We'll show contacts, similar usernames, and friends of friends!</Text>
         )
       ),
+    },
+    {
+      title: 'Friends',
+      data: friends,
+      renderItem: renderItem,
+      emptyComponent: renderEmptyState(),
     },
   ];
 
