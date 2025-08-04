@@ -91,66 +91,100 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
     try {
       setLoadingSuggested(true);
       
-      // Request contacts permission
-      const { status } = await Contacts.requestPermissionsAsync();
-      console.log('Contacts permission status:', status);
+      let phoneNumbers = [];
+      let emails = [];
+      let usernames = [];
+      let contactNames = [];
       
-      if (status !== 'granted') {
-        console.log('Contacts permission denied');
-        setSuggestedFriends([]);
-        return;
+      // Try to get contacts if permission is granted
+      try {
+        const { status } = await Contacts.requestPermissionsAsync();
+        console.log('Contacts permission status:', status);
+        
+        if (status === 'granted') {
+          // Get contacts with phone numbers and emails
+          const { data } = await Contacts.getContactsAsync({ 
+            fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Emails, Contacts.Fields.Name],
+            pageSize: 1000
+          });
+          
+          console.log('Contacts loaded:', data?.length || 0);
+          
+          if (data && data.length > 0) {
+            // Extract contact names for username pattern matching
+            contactNames = data
+              .map(contact => contact.name)
+              .filter(name => name && name.trim().length > 0);
+            
+            // Extract phone numbers
+            phoneNumbers = data
+              .flatMap(contact => (contact.phoneNumbers || []).map(p => p.number))
+              .map(num => num.replace(/[^\d]/g, '')) // Just digits
+              .filter(num => num.length >= 8);
+            
+            // Extract emails
+            emails = data
+              .flatMap(contact => (contact.emails || []).map(e => e.email))
+              .filter(email => email && email.includes('@'));
+            
+            // Generate potential usernames from contact names (for exact matching)
+            usernames = data
+              .map(contact => {
+                const name = contact.name || '';
+                return [
+                  name.toLowerCase().replace(/\s+/g, ''), // "John Doe" -> "johndoe"
+                  name.toLowerCase().replace(/\s+/g, '_'), // "John Doe" -> "john_doe"
+                  name.toLowerCase().replace(/\s+/g, '.'), // "John Doe" -> "john.doe"
+                  name.split(' ')[0]?.toLowerCase(), // "John Doe" -> "john"
+                  name.split(' ')[1]?.toLowerCase(), // "John Doe" -> "doe"
+                ].filter(Boolean);
+              })
+              .flat();
+            
+            // Remove duplicates
+            phoneNumbers = [...new Set(phoneNumbers)];
+            emails = [...new Set(emails)];
+            usernames = [...new Set(usernames)];
+            contactNames = [...new Set(contactNames)];
+            
+            console.log('Extracted from contacts:', {
+              contactNames: contactNames.length,
+              phoneNumbers: phoneNumbers.length,
+              emails: emails.length,
+              usernames: usernames.length
+            });
+            
+            // Remove phone numbers and emails of existing friends
+            const friendPhones = friends.map(f => f.phone ? f.phone.replace(/[^\d]/g, '') : null).filter(Boolean);
+            const friendEmails = friends.map(f => f.email).filter(Boolean);
+            
+            phoneNumbers = phoneNumbers.filter(num => !friendPhones.includes(num));
+            emails = emails.filter(email => !friendEmails.includes(email));
+          }
+        }
+      } catch (contactError) {
+        console.log('Error accessing contacts:', contactError);
+        // Continue without contacts - will use friends-of-friends
       }
       
-      // Get contacts with phone numbers - simpler approach
-      const { data } = await Contacts.getContactsAsync({ 
-        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
-        pageSize: 1000
+      // Query backend for suggested friends (enhanced hybrid approach)
+      console.log('Sending to backend:', {
+        contactNames: contactNames.length,
+        phoneNumbers: phoneNumbers.length,
+        emails: emails.length,
+        usernames: usernames.length
       });
       
-      console.log('Contacts loaded:', data?.length || 0);
+      const response = await friendsAPI.getSuggested({ 
+        contactNames,
+        phoneNumbers, 
+        emails, 
+        usernames 
+      });
       
-      if (!data || data.length === 0) {
-        console.log('No contacts found');
-        setSuggestedFriends([]);
-        return;
-      }
-      
-      // Simple phone number extraction (like the original working version)
-      const phoneNumbers = data
-        .flatMap(contact => (contact.phoneNumbers || []).map(p => p.number))
-        .map(num => num.replace(/[^\d]/g, '')) // Just digits like original
-        .filter(num => num.length >= 8);
-      
-      console.log('Phone numbers found:', phoneNumbers.length);
-      
-      if (phoneNumbers.length === 0) {
-        console.log('No valid phone numbers found');
-        setSuggestedFriends([]);
-        return;
-      }
-      
-      // Remove duplicates
-      const uniquePhones = [...new Set(phoneNumbers)];
-      console.log('Unique phone numbers:', uniquePhones.length);
-      
-      // Remove phone numbers of existing friends (simple approach)
-      const friendPhones = friends.map(f => f.phone ? f.phone.replace(/[^\d]/g, '') : null).filter(Boolean);
-      const filteredPhones = uniquePhones.filter(num => !friendPhones.includes(num));
-      
-      console.log('Phone numbers after filtering friends:', filteredPhones.length);
-      
-      if (filteredPhones.length === 0) {
-        console.log('No phone numbers left after filtering');
-        setSuggestedFriends([]);
-        return;
-      }
-      
-      // Query backend for suggested friends
-      console.log('Sending phone numbers to backend:', filteredPhones.slice(0, 5));
-      const response = await friendsAPI.getSuggested({ phoneNumbers: filteredPhones });
       console.log('Backend response users:', response.users?.length || 0);
-      
       setSuggestedFriends(response.users || []);
+      
     } catch (error) {
       console.error('Error loading suggested friends:', error);
       setSuggestedFriends([]);
@@ -178,23 +212,48 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
     </TouchableOpacity>
   );
 
-  const renderSuggestedItem = ({ item }) => (
-    <View style={styles.suggestedCard}>
-      {item.avatar ? (
-        <Image source={{ uri: item.avatar }} style={styles.avatar} />
-      ) : (
-        <View style={styles.avatarPlaceholder}>
-          <Text style={styles.avatarText}>
-            {item.name.charAt(0).toUpperCase()}
-          </Text>
+  const renderSuggestedItem = ({ item, index }) => {
+    // Determine suggestion type based on position and data
+    // This is a simple heuristic - in a real app you might want to add a 'source' field
+    const isDirectMatch = item.email || item.phone; // Direct contact match
+    const isPatternMatch = !isDirectMatch && item.username; // Username pattern match
+    const isFriendOfFriend = !isDirectMatch && !isPatternMatch; // Friends-of-friends
+    
+    return (
+      <View style={styles.suggestedCard}>
+        <View style={styles.suggestedCardLeft}>
+          {item.avatar ? (
+            <Image source={{ uri: item.avatar }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarText}>
+                {item.name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+          <View style={styles.suggestedUserInfo}>
+            <Text style={styles.friendName}>{item.name}</Text>
+            {item.username && (
+              <Text style={styles.suggestedUsername}>@{item.username}</Text>
+            )}
+            {/* Show suggestion source indicator */}
+            {isDirectMatch && (
+              <Text style={styles.suggestionSource}>📱 Contact</Text>
+            )}
+            {isPatternMatch && (
+              <Text style={styles.suggestionSource}>🔍 Similar username</Text>
+            )}
+            {isFriendOfFriend && (
+              <Text style={styles.suggestionSource}>👥 Friend of friend</Text>
+            )}
+          </View>
         </View>
-      )}
-      <Text style={styles.friendName}>{item.name}</Text>
-      <TouchableOpacity style={styles.addButton}>
-        <Text style={styles.addButtonText}>Add</Text>
-      </TouchableOpacity>
-    </View>
-  );
+        <TouchableOpacity style={styles.addButton}>
+          <Text style={styles.addButtonText}>Add</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
@@ -219,7 +278,7 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
         loadingSuggested ? (
           <ActivityIndicator size="small" color="#4a7cff" style={{ marginTop: 16 }} />
         ) : (
-          <Text style={styles.suggestedEmpty}>No suggested friends found from your contacts.</Text>
+          <Text style={styles.suggestedEmpty}>No suggested friends found. We'll show contacts, similar usernames, and friends of friends!</Text>
         )
       ),
     },
@@ -427,11 +486,34 @@ const styles = StyleSheet.create({
   suggestedCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: '#f0f4ff',
     borderRadius: 14,
     paddingVertical: 14,
     paddingHorizontal: 18,
     marginBottom: 12,
+  },
+  suggestedCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  suggestedUserInfo: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  suggestedUsername: {
+    fontSize: 14,
+    color: '#666',
+    fontFamily: headerFontFamily,
+    marginTop: 2,
+  },
+  suggestionSource: {
+    fontSize: 12,
+    color: '#4a7cff',
+    fontFamily: headerFontFamily,
+    marginTop: 2,
+    fontWeight: '500',
   },
   addButton: {
     backgroundColor: '#4a7cff',

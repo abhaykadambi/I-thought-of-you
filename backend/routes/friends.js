@@ -203,76 +203,185 @@ router.get('/:friendId', authenticateToken, async (req, res) => {
   }
 });
 
-// POST /suggested - Find users by email, phone number, or username (for suggested friends)
+// POST /suggested - Hybrid approach: contacts + username patterns + friends-of-friends
 router.post('/suggested', authenticateToken, async (req, res) => {
   try {
     const currentUserId = req.user.userId;
-    const { emails = [], phoneNumbers = [], usernames = [] } = req.body;
+    const { emails = [], phoneNumbers = [], usernames = [], contactNames = [] } = req.body;
+    const MAX_SUGGESTIONS = 5;
 
-    console.log('Suggested friends request:', { 
+    console.log('Enhanced hybrid suggested friends request:', { 
       emailsCount: emails.length, 
       phoneNumbersCount: phoneNumbers.length, 
-      usernamesCount: usernames.length 
+      usernamesCount: usernames.length,
+      contactNamesCount: contactNames.length
     });
 
-    if ((!emails || emails.length === 0) && (!phoneNumbers || phoneNumbers.length === 0) && (!usernames || usernames.length === 0)) {
-      return res.status(400).json({ error: 'No emails, phone numbers, or usernames provided' });
-    }
-
     let allUsers = new Map(); // Use Map to avoid duplicates
+    let priorityUsers = new Map(); // High priority users (direct matches)
 
-    // Query by emails
-    if (emails.length > 0) {
-      const { data: emailUsers, error: emailError } = await supabase
-        .from('users')
-        .select('id, name, email, username, avatar, created_at')
-        .in('email', emails)
-        .neq('id', currentUserId);
-      
-      if (emailError) {
-        console.error('Email query error:', emailError);
-      } else {
-        emailUsers?.forEach(user => allUsers.set(user.id, user));
+    // Step 1: Find users from direct contact matches (emails, phone numbers, exact usernames)
+    if (emails.length > 0 || phoneNumbers.length > 0 || usernames.length > 0) {
+      // Query by emails
+      if (emails.length > 0) {
+        const { data: emailUsers, error: emailError } = await supabase
+          .from('users')
+          .select('id, name, email, username, avatar, created_at')
+          .in('email', emails)
+          .neq('id', currentUserId);
+        
+        if (emailError) {
+          console.error('Email query error:', emailError);
+        } else {
+          emailUsers?.forEach(user => {
+            allUsers.set(user.id, user);
+            priorityUsers.set(user.id, user); // Mark as high priority
+          });
+        }
+      }
+
+      // Query by phone numbers
+      if (phoneNumbers.length > 0) {
+        const { data: phoneUsers, error: phoneError } = await supabase
+          .from('users')
+          .select('id, name, email, username, avatar, created_at')
+          .in('phone', phoneNumbers)
+          .neq('id', currentUserId);
+        
+        if (phoneError) {
+          console.error('Phone query error:', phoneError);
+        } else {
+          phoneUsers?.forEach(user => {
+            allUsers.set(user.id, user);
+            priorityUsers.set(user.id, user); // Mark as high priority
+          });
+        }
+      }
+
+      // Query by exact usernames
+      if (usernames.length > 0) {
+        const normalizedUsernames = usernames.map(u => u.toLowerCase());
+        const { data: usernameUsers, error: usernameError } = await supabase
+          .from('users')
+          .select('id, name, email, username, avatar, created_at')
+          .in('username', normalizedUsernames)
+          .neq('id', currentUserId);
+        
+        if (usernameError) {
+          console.error('Username query error:', usernameError);
+        } else {
+          usernameUsers?.forEach(user => {
+            allUsers.set(user.id, user);
+            priorityUsers.set(user.id, user); // Mark as high priority
+          });
+        }
       }
     }
 
-    // Query by phone numbers (simple approach like original)
-    if (phoneNumbers.length > 0) {
-      const { data: phoneUsers, error: phoneError } = await supabase
-        .from('users')
-        .select('id, name, email, username, avatar, created_at')
-        .in('phone', phoneNumbers)
-        .neq('id', currentUserId);
+    // Step 2: Find users with similar usernames to contact names (lower priority)
+    if (contactNames.length > 0 && allUsers.size < MAX_SUGGESTIONS) {
+      console.log(`Found ${allUsers.size} direct matches, searching for username patterns from ${contactNames.length} contact names`);
       
-      if (phoneError) {
-        console.error('Phone query error:', phoneError);
-      } else {
-        phoneUsers?.forEach(user => allUsers.set(user.id, user));
+      // Generate username patterns from contact names
+      const usernamePatterns = [];
+      contactNames.forEach(name => {
+        if (name && name.trim()) {
+          const cleanName = name.toLowerCase().trim();
+          const nameParts = cleanName.split(/\s+/);
+          
+          // Generate various username patterns
+          usernamePatterns.push(
+            cleanName.replace(/\s+/g, ''), // "john doe" -> "johndoe"
+            cleanName.replace(/\s+/g, '_'), // "john doe" -> "john_doe"
+            cleanName.replace(/\s+/g, '.'), // "john doe" -> "john.doe"
+            nameParts[0], // "john doe" -> "john"
+            nameParts[nameParts.length - 1], // "john doe" -> "doe"
+            `${nameParts[0]}${Math.floor(Math.random() * 999)}`, // "john123"
+            `${nameParts[0]}${nameParts[nameParts.length - 1]}`, // "johndoe"
+            `${nameParts[0]}_${nameParts[nameParts.length - 1]}` // "john_doe"
+          );
+        }
+      });
+
+      // Remove duplicates and filter valid patterns
+      const uniquePatterns = [...new Set(usernamePatterns)].filter(pattern => 
+        pattern && pattern.length >= 3 && /^[a-z0-9_.]+$/.test(pattern)
+      );
+
+      console.log(`Generated ${uniquePatterns.length} unique username patterns`);
+
+      // Search for users with similar usernames
+      for (const pattern of uniquePatterns) {
+        if (allUsers.size >= MAX_SUGGESTIONS) break;
+        
+        const { data: similarUsers, error: similarError } = await supabase
+          .from('users')
+          .select('id, name, email, username, avatar, created_at')
+          .ilike('username', `%${pattern}%`)
+          .neq('id', currentUserId)
+          .limit(MAX_SUGGESTIONS - allUsers.size);
+        
+        if (similarError) {
+          console.error('Username pattern query error:', similarError);
+        } else if (similarUsers) {
+          similarUsers.forEach(user => {
+            if (!allUsers.has(user.id)) {
+              allUsers.set(user.id, user);
+              // Don't mark as priority - these are pattern matches
+            }
+          });
+        }
       }
     }
 
-    // Query by usernames
-    if (usernames.length > 0) {
-      const normalizedUsernames = usernames.map(u => u.toLowerCase());
-      const { data: usernameUsers, error: usernameError } = await supabase
-        .from('users')
-        .select('id, name, email, username, avatar, created_at')
-        .in('username', normalizedUsernames)
-        .neq('id', currentUserId);
+    // Step 3: If we still have fewer than MAX_SUGGESTIONS, add friends-of-friends
+    if (allUsers.size < MAX_SUGGESTIONS) {
+      console.log(`Found ${allUsers.size} total matches, adding friends-of-friends to reach ${MAX_SUGGESTIONS}`);
       
-      if (usernameError) {
-        console.error('Username query error:', usernameError);
-      } else {
-        usernameUsers?.forEach(user => allUsers.set(user.id, user));
+      // Get current user's friends
+      const { data: userFriends } = await supabase
+        .from('friend_requests')
+        .select('recipient_id')
+        .eq('sender_id', currentUserId)
+        .eq('status', 'accepted');
+      
+      const friendIds = userFriends?.map(f => f.recipient_id) || [];
+      
+      if (friendIds.length > 0) {
+        // Find friends of friends (excluding current user and existing friends)
+        const { data: friendsOfFriends } = await supabase
+          .from('friend_requests')
+          .select(`
+            recipient:users!friend_requests_recipient_id_fkey(
+              id, name, email, username, avatar, created_at
+            )
+          `)
+          .in('sender_id', friendIds)
+          .eq('status', 'accepted')
+          .neq('recipient_id', currentUserId)
+          .not('recipient_id', 'in', `(${friendIds.join(',')})`)
+          .limit(MAX_SUGGESTIONS - allUsers.size);
+        
+        if (friendsOfFriends) {
+          friendsOfFriends.forEach(fof => {
+            if (fof.recipient && !allUsers.has(fof.recipient.id)) {
+              allUsers.set(fof.recipient.id, fof.recipient);
+            }
+          });
+        }
       }
     }
 
-    const users = Array.from(allUsers.values());
-    console.log('Found suggested friends:', users.length);
+    // Prioritize direct matches first, then pattern matches, then friends-of-friends
+    const priorityList = Array.from(priorityUsers.values());
+    const remainingUsers = Array.from(allUsers.values()).filter(user => !priorityUsers.has(user.id));
+    const finalUsers = [...priorityList, ...remainingUsers].slice(0, MAX_SUGGESTIONS);
 
-    res.json({ users });
+    console.log(`Final suggested friends: ${finalUsers.length} (${priorityUsers.size} direct matches, ${finalUsers.length - priorityUsers.size} pattern/friends-of-friends)`);
+
+    res.json({ users: finalUsers });
   } catch (error) {
-    console.error('Suggested friends error:', error);
+    console.error('Enhanced hybrid suggested friends error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
