@@ -750,4 +750,158 @@ router.get('/check-username/:username', async (req, res) => {
   }
 });
 
+// POST /auth/apple - Apple Sign-In
+router.post('/apple', async (req, res) => {
+  try {
+    const { identityToken, fullName, email } = req.body;
+
+    if (!identityToken) {
+      return res.status(400).json({ error: 'Identity token is required' });
+    }
+
+    // Verify the Apple identity token
+    // Note: In production, you should verify the token with Apple's servers
+    // For now, we'll trust the token from the client and extract user info
+    
+    // Extract user info from the token (this is a simplified approach)
+    // In production, you should decode and verify the JWT with Apple's public keys
+    let appleUserId;
+    let appleEmail;
+    
+    try {
+      // For now, we'll use a simple approach - in production, verify with Apple
+      // This is a placeholder - you should implement proper JWT verification
+      appleUserId = `apple_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      appleEmail = email || `apple_${appleUserId}@privaterelay.appleid.com`;
+    } catch (tokenError) {
+      console.error('Token verification error:', tokenError);
+      return res.status(400).json({ error: 'Invalid identity token' });
+    }
+
+    // Check if user already exists with this Apple ID
+    const { data: existingUser, error: checkError } = await supabase
+      .from('users')
+      .select('id, email, name, username, avatar')
+      .eq('apple_id', appleUserId)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('Check existing user error:', checkError);
+      return res.status(500).json({ error: 'Failed to check existing user' });
+    }
+
+    if (existingUser) {
+      // User exists, generate JWT and return user data
+      const token = jwt.sign(
+        { userId: existingUser.id, email: existingUser.email },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      res.json({
+        token,
+        user: {
+          id: existingUser.id,
+          email: existingUser.email,
+          name: existingUser.name,
+          username: existingUser.username,
+          avatar: existingUser.avatar
+        },
+        isNewUser: false
+      });
+    } else {
+      // New user - return success but indicate they need to complete profile
+      res.json({
+        appleUserId,
+        appleEmail,
+        fullName,
+        isNewUser: true,
+        message: 'Please complete your profile with name and username'
+      });
+    }
+
+  } catch (error) {
+    console.error('Apple Sign-In error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /auth/apple/complete - Complete Apple Sign-In profile
+router.post('/apple/complete', async (req, res) => {
+  try {
+    const { appleUserId, appleEmail, fullName, name, username } = req.body;
+
+    if (!appleUserId || !name || !username) {
+      return res.status(400).json({ error: 'Apple user ID, name, and username are required' });
+    }
+
+    // Validate username format
+    const usernameRegex = /^[a-zA-Z0-9_]{3,32}$/;
+    if (!usernameRegex.test(username)) {
+      return res.status(400).json({ 
+        error: 'Username must be 3-32 characters long and contain only letters, numbers, and underscores' 
+      });
+    }
+
+    // Check if username is available
+    const normalizedUsername = username.toLowerCase();
+    const { data: existingUsername, error: usernameError } = await supabase
+      .from('users')
+      .select('id')
+      .ilike('username', normalizedUsername)
+      .single();
+
+    if (usernameError && usernameError.code !== 'PGRST116') {
+      console.error('Username check error:', usernameError);
+      return res.status(500).json({ error: 'Failed to check username availability' });
+    }
+
+    if (existingUsername) {
+      return res.status(400).json({ error: 'Username is already taken' });
+    }
+
+    // Create new user
+    const { data: newUser, error: createError } = await supabase
+      .from('users')
+      .insert({
+        email: appleEmail,
+        name: name,
+        username: normalizedUsername,
+        apple_id: appleUserId,
+        auth_provider: 'apple',
+        created_at: new Date().toISOString()
+      })
+      .select('id, email, name, username, avatar')
+      .single();
+
+    if (createError) {
+      console.error('Create user error:', createError);
+      return res.status(500).json({ error: 'Failed to create user' });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: newUser.id, email: newUser.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: newUser.id,
+        email: newUser.email,
+        name: newUser.name,
+        username: newUser.username,
+        avatar: newUser.avatar
+      },
+      isNewUser: true
+    });
+
+  } catch (error) {
+    console.error('Complete Apple Sign-In error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router; 

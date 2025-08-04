@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform, KeyboardAvoidingView, ActivityIndicator, Modal, Pressable, Linking } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { authAPI } from '../services/api';
 import notificationService from '../services/notificationService';
+import AppleSignInModal from '../components/AppleSignInModal';
 
 const globalBackground = '#f8f5ee';
 const cardBackground = '#fff9ed';
@@ -16,6 +18,9 @@ export default function SignupScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [showPolicyModal, setShowPolicyModal] = useState(false);
   const [pendingSignup, setPendingSignup] = useState(false);
+  const [showAppleModal, setShowAppleModal] = useState(false);
+  const [appleUserData, setAppleUserData] = useState(null);
+  const [appleLoading, setAppleLoading] = useState(false);
 
   const handleSignUp = async () => {
     if (!email || !password || !name || !username) {
@@ -86,6 +91,82 @@ export default function SignupScreen({ navigation }) {
     Alert.alert('Required', 'You must accept the Privacy Policy and Terms of Service to create an account.');
   };
 
+  const handleAppleSignIn = async () => {
+    try {
+      setAppleLoading(true);
+      
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      // Send to backend
+      const response = await authAPI.appleSignIn(
+        credential.identityToken,
+        credential.fullName,
+        credential.email
+      );
+
+      if (response.isNewUser) {
+        // New user - show modal to complete profile
+        setAppleUserData({
+          appleUserId: response.appleUserId,
+          appleEmail: response.appleEmail,
+          fullName: response.fullName
+        });
+        setShowAppleModal(true);
+      } else {
+        // Existing user - proceed to main app
+        try {
+          console.log('Requesting notification permissions for Apple Sign-In user...');
+          await notificationService.requestPermissions();
+        } catch (notificationError) {
+          console.error('Error requesting notification permissions:', notificationError);
+        }
+        navigation.navigate('MainApp');
+      }
+    } catch (error) {
+      if (error.code === 'ERR_CANCELED') {
+        // User cancelled Apple Sign-In
+        console.log('Apple Sign-In cancelled');
+      } else {
+        console.error('Apple Sign-In error:', error);
+        Alert.alert('Apple Sign-In Failed', 'Please try again or use email signup.');
+      }
+    } finally {
+      setAppleLoading(false);
+    }
+  };
+
+  const handleCompleteAppleSignIn = async ({ name, username }) => {
+    try {
+      await authAPI.completeAppleSignIn(
+        appleUserData.appleUserId,
+        appleUserData.appleEmail,
+        appleUserData.fullName,
+        name,
+        username
+      );
+
+      setShowAppleModal(false);
+      setAppleUserData(null);
+
+      // Request notification permissions
+      try {
+        console.log('Requesting notification permissions for new Apple Sign-In user...');
+        await notificationService.requestPermissions();
+      } catch (notificationError) {
+        console.error('Error requesting notification permissions:', notificationError);
+      }
+
+      navigation.navigate('MainApp');
+    } catch (error) {
+      Alert.alert('Setup Failed', error.response?.data?.error || 'Failed to complete setup. Please try again.');
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -146,6 +227,25 @@ export default function SignupScreen({ navigation }) {
             <Text style={styles.signupButtonText}>Create Account</Text>
           )}
         </TouchableOpacity>
+
+        {/* Divider */}
+        <View style={styles.dividerContainer}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        {/* Apple Sign-In Button */}
+        {AppleAuthentication.isAvailableAsync && (
+          <AppleAuthentication.AppleAuthenticationButton
+            buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP}
+            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+            cornerRadius={12}
+            style={styles.appleButton}
+            onPress={handleAppleSignIn}
+            disabled={appleLoading}
+          />
+        )}
       </View>
       <TouchableOpacity 
         style={styles.backButton} 
@@ -179,6 +279,17 @@ export default function SignupScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+
+      {/* Apple Sign-In Modal */}
+      <AppleSignInModal
+        visible={showAppleModal}
+        onComplete={handleCompleteAppleSignIn}
+        onCancel={() => {
+          setShowAppleModal(false);
+          setAppleUserData(null);
+        }}
+        appleUserData={appleUserData}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -382,5 +493,25 @@ const styles = StyleSheet.create({
   },
   acceptButtonText: {
     color: '#fff',
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e0e0e0',
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    color: '#666',
+    fontSize: 14,
+    fontFamily: headerFontFamily,
+  },
+  appleButton: {
+    height: 50,
+    width: '100%',
   },
 }); 

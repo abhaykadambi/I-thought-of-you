@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { authAPI } from '../services/api';
 import notificationService from '../services/notificationService';
 
@@ -10,6 +11,7 @@ const headerFontFamily = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [appleLoading, setAppleLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -36,6 +38,59 @@ export default function LoginScreen({ navigation }) {
       navigation.navigate('MainApp');
     } catch (error) {
       Alert.alert('Login Failed', error.response?.data?.error || 'Login failed. Please try again.');
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    try {
+      setAppleLoading(true);
+      
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      // Send to backend
+      const response = await authAPI.appleSignIn(
+        credential.identityToken,
+        credential.fullName,
+        credential.email
+      );
+
+      if (response.isNewUser) {
+        // New user - redirect to signup to complete profile
+        Alert.alert(
+          'New User',
+          'Please complete your profile setup on the signup screen.',
+          [{ text: 'OK', onPress: () => navigation.navigate('Signup') }]
+        );
+      } else {
+        // Existing user - proceed to main app
+        try {
+          const permissionStatus = await notificationService.checkPermissionStatus();
+          if (permissionStatus !== 'granted') {
+            console.log('Requesting notification permissions for Apple Sign-In user...');
+            await notificationService.requestPermissions();
+          } else {
+            console.log('Notification permissions already granted for Apple Sign-In user');
+          }
+        } catch (notificationError) {
+          console.error('Error handling notification permissions:', notificationError);
+        }
+        navigation.navigate('MainApp');
+      }
+    } catch (error) {
+      if (error.code === 'ERR_CANCELED') {
+        // User cancelled Apple Sign-In
+        console.log('Apple Sign-In cancelled');
+      } else {
+        console.error('Apple Sign-In error:', error);
+        Alert.alert('Apple Sign-In Failed', 'Please try again or use email login.');
+      }
+    } finally {
+      setAppleLoading(false);
     }
   };
 
@@ -69,6 +124,26 @@ export default function LoginScreen({ navigation }) {
         <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
           <Text style={styles.loginButtonText}>Login</Text>
         </TouchableOpacity>
+
+        {/* Divider */}
+        <View style={styles.dividerContainer}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        {/* Apple Sign-In Button */}
+        {AppleAuthentication.isAvailableAsync && (
+          <AppleAuthentication.AppleAuthenticationButton
+            buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+            cornerRadius={12}
+            style={styles.appleButton}
+            onPress={handleAppleSignIn}
+            disabled={appleLoading}
+          />
+        )}
+
         <TouchableOpacity style={styles.forgotPasswordButton} onPress={() => navigation.navigate('ForgotPassword')}>
           <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
         </TouchableOpacity>
@@ -243,5 +318,9 @@ const styles = StyleSheet.create({
     color: '#4a7cff',
     fontSize: 14,
     fontFamily: headerFontFamily,
+  },
+  appleButton: {
+    height: 50,
+    width: '100%',
   },
 }); 

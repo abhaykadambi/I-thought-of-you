@@ -150,6 +150,32 @@ export const authAPI = {
     const response = await api.get(`/auth/check-username/${username}`);
     return response.data;
   },
+
+  // Apple Sign-In
+  appleSignIn: async (identityToken, fullName, email) => {
+    const response = await api.post('/auth/apple', { identityToken, fullName, email });
+    if (response.data.token) {
+      await AsyncStorage.setItem('authToken', response.data.token);
+      await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+    }
+    return response.data;
+  },
+
+  // Complete Apple Sign-In profile
+  completeAppleSignIn: async (appleUserId, appleEmail, fullName, name, username) => {
+    const response = await api.post('/auth/apple/complete', { 
+      appleUserId, 
+      appleEmail, 
+      fullName, 
+      name, 
+      username 
+    });
+    if (response.data.token) {
+      await AsyncStorage.setItem('authToken', response.data.token);
+      await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+    }
+    return response.data;
+  },
 };
 
 // Thoughts API
