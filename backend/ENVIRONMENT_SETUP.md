@@ -46,6 +46,16 @@ REDIS_URL=redis://localhost:6379
 # REDIS_URL=redis://username:password@host:port
 # REDIS_URL=rediss://username:password@host:port (SSL)
 # REDIS_TIMEOUT=10
+
+# ========================================
+# APPLE SIGN-IN CONFIGURATION (Required for Apple Sign-In)
+# ========================================
+APPLE_BUNDLE_ID=com.ithoughtofyou.app
+APPLE_TEAM_ID=your_apple_team_id_here
+APPLE_KEY_ID=your_apple_key_id_here
+APPLE_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----
+your_apple_private_key_content_here
+-----END PRIVATE KEY-----
 ```
 
 ## How to Get Each Value
