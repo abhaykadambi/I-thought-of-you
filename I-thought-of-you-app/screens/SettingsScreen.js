@@ -105,6 +105,90 @@ export default function SettingsScreen({ navigation }) {
           </View>
           <Text style={styles.settingArrow}>→</Text>
         </TouchableOpacity>
+        
+        {/* Add notification setup button */}
+        <View style={styles.separator} />
+        <TouchableOpacity 
+          style={styles.settingRow} 
+          onPress={async () => {
+            try {
+              Alert.alert(
+                'Setup Notifications',
+                'This will request notification permissions and register your device for push notifications.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { 
+                    text: 'Setup', 
+                    onPress: async () => {
+                      try {
+                        const success = await notificationService.requestPermissions();
+                        if (success) {
+                          Alert.alert('Success', 'Notifications have been set up successfully!');
+                          checkNotificationStatus(); // Refresh status
+                        } else {
+                          Alert.alert('Setup Failed', 'Failed to setup notifications. Please check your device settings.');
+                        }
+                      } catch (error) {
+                        Alert.alert('Error', 'An error occurred while setting up notifications.');
+                      }
+                    }
+                  }
+                ]
+              );
+            } catch (error) {
+              console.error('Error showing notification setup alert:', error);
+            }
+          }}
+        >
+          <View style={styles.settingContent}>
+            <Text style={styles.settingText}>Setup Notifications</Text>
+            <Text style={styles.settingSubtext}>Request permissions and register device</Text>
+          </View>
+          <Text style={styles.settingArrow}>→</Text>
+        </TouchableOpacity>
+        
+        {/* Add debug notifications button */}
+        <View style={styles.separator} />
+        <TouchableOpacity 
+          style={styles.settingRow} 
+          onPress={async () => {
+            try {
+              Alert.alert(
+                'Debug Notifications',
+                'This will test your notification setup and show detailed information.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { 
+                    text: 'Debug', 
+                    onPress: async () => {
+                      try {
+                        const debugInfo = await notificationService.debugNotificationSetup();
+                        Alert.alert(
+                          'Debug Results', 
+                          `Permission Status: ${debugInfo.permissionStatus}\n` +
+                          `Has Push Token: ${debugInfo.hasToken ? 'Yes' : 'No'}\n` +
+                          `Backend Registered: ${debugInfo.backendRegistered ? 'Yes' : 'No'}\n` +
+                          `Test Notification: ${debugInfo.testNotification ? 'Sent' : 'Failed'}`
+                        );
+                      } catch (error) {
+                        Alert.alert('Debug Error', 'An error occurred while debugging notifications.');
+                      }
+                    }
+                  }
+                ]
+              );
+            } catch (error) {
+              console.error('Error showing debug alert:', error);
+            }
+          }}
+        >
+          <View style={styles.settingContent}>
+            <Text style={styles.settingText}>Debug Notifications</Text>
+            <Text style={styles.settingSubtext}>Test and troubleshoot notification setup</Text>
+          </View>
+          <Text style={styles.settingArrow}>→</Text>
+        </TouchableOpacity>
+
         <View style={styles.separator} />
         <TouchableOpacity style={styles.settingRow} onPress={() => navigation.navigate('Privacy')}>
           <Text style={styles.settingText}>Privacy</Text>
@@ -251,5 +335,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: '#4a7cff',
     fontWeight: 'bold',
+  },
+  settingSubtext: {
+    fontSize: 12,
+    color: '#7f8c8d',
+    marginTop: 2,
+    fontFamily: headerFontFamily,
   },
 }); 

@@ -128,19 +128,31 @@ export default function App() {
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        // Keep the splash screen visible while we fetch resources
-        await SplashScreen.preventAutoHideAsync();
-        
-        // Check authentication
+        // Check if user is logged in
         const loggedIn = await authAPI.isLoggedIn();
         setInitialRoute(loggedIn ? 'MainApp' : 'Welcome');
         
         // Request notification permissions if user is logged in
         if (loggedIn) {
+          console.log('🔔 User is logged in, setting up notifications...');
+          
           // Small delay to ensure app is fully loaded
           setTimeout(async () => {
-            await notificationService.requestPermissions();
+            try {
+              console.log('🔔 Initializing notification system...');
+              const success = await notificationService.requestPermissions();
+              if (success) {
+                console.log('✅ Notification system initialized successfully');
+              } else {
+                console.log('⚠️ Notification system initialization failed, but continuing...');
+              }
+            } catch (error) {
+              console.error('💥 Error initializing notifications:', error);
+              // Don't fail the app if notifications fail
+            }
           }, 1000);
+        } else {
+          console.log('ℹ️ User not logged in, skipping notification setup');
         }
       } catch (error) {
         console.warn('Error during app initialization:', error);

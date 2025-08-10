@@ -1,5 +1,4 @@
 import * as Notifications from 'expo-notifications';
-import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 import api from './api';
 
@@ -14,45 +13,64 @@ Notifications.setNotificationHandler({
 
 class NotificationService {
   constructor() {
-    this.permissionStatus = null;
+    this.permissionStatus = 'undetermined';
+    this.pushToken = null;
   }
 
-  // Request push notification permissions
+  // Request notification permissions and register push token
   async requestPermissions() {
     try {
-      console.log('Requesting notification permissions...');
+      console.log('🔔 Requesting notification permissions...');
+      
+      // Check existing permissions
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      console.log('Existing permission status:', existingStatus);
+      console.log('📱 Existing permission status:', existingStatus);
+      
       let finalStatus = existingStatus;
       
       // Only ask if permissions have not been determined
       if (existingStatus !== 'granted') {
+        console.log('📝 Requesting new permissions...');
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
-        console.log('New permission status after request:', status);
+        console.log('✅ New permission status:', status);
       }
       
       this.permissionStatus = finalStatus;
       
       if (finalStatus !== 'granted') {
-        console.log('Failed to get notification permissions!');
+        console.log('❌ Failed to get notification permissions!');
         return false;
       }
+      
+      console.log('🎯 Permissions granted, getting push token...');
       
       // Get push token for remote notifications
       const token = await this.getPushToken();
       if (token) {
-        console.log('Got push token:', token.substring(0, 20) + '...');
+        console.log('🔑 Got push token:', token.substring(0, 30) + '...');
+        
+        // Store token locally
+        this.pushToken = token;
+        
+        // Register with backend
+        console.log('📡 Registering push token with backend...');
         const success = await this.registerPushToken(token);
-        console.log('Push token registration result:', success);
-        return success;
+        
+        if (success) {
+          console.log('✅ Push token registered successfully!');
+          return true;
+        } else {
+          console.log('❌ Failed to register push token with backend');
+          return false;
+        }
       } else {
-        console.log('Failed to get push token');
+        console.log('❌ Failed to get push token');
         return false;
       }
       
     } catch (error) {
-      console.error('Error requesting notification permissions:', error);
+      console.error('💥 Error requesting notification permissions:', error);
       return false;
     }
   }
@@ -62,10 +80,10 @@ class NotificationService {
     try {
       const { status } = await Notifications.getPermissionsAsync();
       this.permissionStatus = status;
-      console.log('Current permission status:', status);
+      console.log('📱 Current permission status:', status);
       return status;
     } catch (error) {
-      console.error('Error checking notification permissions:', error);
+      console.error('💥 Error checking notification permissions:', error);
       return 'unknown';
     }
   }
@@ -98,7 +116,7 @@ class NotificationService {
   // Send a local test notification
   async sendTestNotification() {
     try {
-      console.log('Sending test notification...');
+      console.log('🧪 Sending test notification...');
       await Notifications.scheduleNotificationAsync({
         content: {
           title: "Test Notification",
@@ -107,10 +125,10 @@ class NotificationService {
         },
         trigger: null, // Send immediately
       });
-      console.log('Test notification sent successfully');
+      console.log('✅ Test notification sent successfully');
       return true;
     } catch (error) {
-      console.error('Error sending test notification:', error);
+      console.error('💥 Error sending test notification:', error);
       return false;
     }
   }
@@ -118,34 +136,10 @@ class NotificationService {
   // Open app settings if permissions are denied
   async openAppSettings() {
     try {
-      if (Platform.OS === 'ios') {
-        // For iOS, try to open the specific app's settings
-        // This will work in both development and production
-        const canOpen = await Linking.canOpenURL('app-settings:');
-        if (canOpen) {
-          await Linking.openURL('app-settings:');
-          return true;
-        }
-      } else {
-        // For Android, we need to know the actual package name
-        // In development, this might not work perfectly, but in production it will
-        const packageName = 'com.ithoughtofyou.app'; // This matches the package name in app.json
-        const canOpen = await Linking.canOpenURL(`package:${packageName}`);
-        if (canOpen) {
-          await Linking.openURL(`package:${packageName}`);
-          return true;
-        } else {
-          // Fallback to general settings
-          const canOpenSettings = await Linking.canOpenURL('android-app://com.android.settings/.Settings');
-          if (canOpenSettings) {
-            await Linking.openURL('android-app://com.android.settings/.Settings');
-            return true;
-          }
-        }
-      }
-      return false;
+      await Notifications.openAppSettingsAsync();
+      return true;
     } catch (error) {
-      console.error('Error opening app settings:', error);
+      console.error('💥 Error opening app settings:', error);
       return false;
     }
   }
@@ -153,14 +147,28 @@ class NotificationService {
   // Get Expo push token
   async getPushToken() {
     try {
-      console.log('Getting Expo push token...');
+      console.log('🔑 Getting Expo push token...');
+      
+      // Check if we already have a token
+      if (this.pushToken) {
+        console.log('✅ Using cached push token');
+        return this.pushToken;
+      }
+      
       const token = await Notifications.getExpoPushTokenAsync({
-        projectId: '35bc5d75-73b4-4250-b2d1-470d61a7279d', // Make sure this matches your Expo project ID
+        projectId: '35bc5d75-73b4-4250-b2d1-470d61a7279d', // Your Expo project ID
       });
-      console.log('Push token obtained successfully');
-      return token.data;
+      
+      if (token && token.data) {
+        console.log('✅ Push token obtained successfully');
+        this.pushToken = token.data;
+        return token.data;
+      } else {
+        console.log('❌ No token data received');
+        return null;
+      }
     } catch (error) {
-      console.error('Error getting push token:', error);
+      console.error('💥 Error getting push token:', error);
       return null;
     }
   }
@@ -168,15 +176,22 @@ class NotificationService {
   // Register push token with backend
   async registerPushToken(token) {
     try {
-      console.log('Registering push token with backend...');
+      console.log('📡 Registering push token with backend...');
+      console.log('🔑 Token to register:', token.substring(0, 30) + '...');
+      
       const response = await api.post('/notifications/register-token', {
         pushToken: token
       });
-      console.log('Push token registered successfully with backend');
+      
+      console.log('✅ Push token registered successfully with backend');
+      console.log('📋 Backend response:', response.data);
       return true;
     } catch (error) {
-      console.error('Error registering push token with backend:', error);
-      console.error('Error details:', error.response?.data);
+      console.error('💥 Error registering push token with backend:', error);
+      if (error.response) {
+        console.error('📋 Backend error response:', error.response.data);
+        console.error('📊 Status code:', error.response.status);
+      }
       return false;
     }
   }
@@ -184,32 +199,42 @@ class NotificationService {
   // Unregister push token
   async unregisterPushToken() {
     try {
+      console.log('🗑️ Unregistering push token...');
       await api.delete('/notifications/unregister-token');
-      console.log('Push token unregistered successfully');
+      console.log('✅ Push token unregistered successfully');
+      
+      // Clear local token
+      this.pushToken = null;
       return true;
     } catch (error) {
-      console.error('Error unregistering push token:', error);
+      console.error('💥 Error unregistering push token:', error);
       return false;
     }
   }
 
   // Set up notification listener
   setupNotificationListener(navigation) {
+    console.log('🎧 Setting up notification listeners...');
+    
     const subscription = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification received:', notification);
+      console.log('📨 Notification received:', notification);
       // You can handle the notification here if needed
     });
 
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification response received:', response);
+      console.log('👆 Notification response received:', response);
       // Navigate to the appropriate screen when notification is tapped
       if (response.notification.request.content.data?.type === 'new_thought' && navigation) {
+        console.log('🧭 Navigating to Feed screen...');
         // Navigate to the feed screen to show the new thought
         navigation.navigate('Feed');
       }
     });
 
+    console.log('✅ Notification listeners set up successfully');
+    
     return () => {
+      console.log('🧹 Cleaning up notification listeners...');
       subscription.remove();
       responseSubscription.remove();
     };
@@ -227,33 +252,64 @@ class NotificationService {
   // Debug function to check notification setup
   async debugNotificationSetup() {
     try {
-      console.log('=== Notification Setup Debug ===');
+      console.log('🔍 === Notification Setup Debug ===');
       
       // Check permissions
       const permissionStatus = await this.checkPermissionStatus();
-      console.log('Permission status:', permissionStatus);
+      console.log('📱 Permission status:', permissionStatus);
       
       // Check if we can get a push token
       const token = await this.getPushToken();
-      console.log('Push token available:', !!token);
+      console.log('🔑 Push token available:', !!token);
       if (token) {
-        console.log('Token preview:', token.substring(0, 20) + '...');
+        console.log('🔑 Token preview:', token.substring(0, 30) + '...');
+      }
+      
+      // Check if token is registered with backend
+      if (token) {
+        console.log('📡 Testing backend registration...');
+        const isRegistered = await this.registerPushToken(token);
+        console.log('✅ Backend registration test result:', isRegistered);
       }
       
       // Try to send a test notification
       const testResult = await this.sendTestNotification();
-      console.log('Test notification result:', testResult);
+      console.log('🧪 Test notification result:', testResult);
       
       return {
         permissionStatus,
         hasToken: !!token,
-        testNotificationSent: testResult
+        backendRegistered: !!token && await this.registerPushToken(token),
+        testNotification: testResult
       };
     } catch (error) {
-      console.error('Debug notification setup error:', error);
+      console.error('💥 Debug error:', error);
       return { error: error.message };
+    }
+  }
+
+  // Force refresh push token (useful for debugging)
+  async refreshPushToken() {
+    try {
+      console.log('🔄 Refreshing push token...');
+      this.pushToken = null; // Clear cached token
+      const newToken = await this.getPushToken();
+      
+      if (newToken) {
+        console.log('✅ New token obtained, registering with backend...');
+        const success = await this.registerPushToken(newToken);
+        return success;
+      } else {
+        console.log('❌ Failed to get new token');
+        return false;
+      }
+    } catch (error) {
+      console.error('💥 Error refreshing push token:', error);
+      return false;
     }
   }
 }
 
-export default new NotificationService(); 
+// Create and export a single instance
+const notificationService = new NotificationService();
+export default notificationService; 
