@@ -9,6 +9,7 @@ const twilio = require('twilio');
 const redisService = require('../services/redisService');
 const multer = require('multer');
 const path = require('path');
+const jwksClient = require('jwks-client');
 
 const router = express.Router();
 
@@ -64,26 +65,48 @@ const generateResetCode = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
-// Helper function to extract Apple user info from token (development-friendly)
-const extractAppleUserInfo = (identityToken, email) => {
+// Add this function for proper Apple token verification
+const verifyAppleToken = async (identityToken) => {
   try {
-    // For development, we'll decode the token without verification
-    // In production, you should implement proper JWT verification with Apple's public keys
     const decoded = jwt.decode(identityToken, { complete: true });
-    
-    if (!decoded || !decoded.payload) {
+    if (!decoded || !decoded.header || !decoded.header.kid) {
       throw new Error('Invalid token format');
     }
 
-    const payload = decoded.payload;
-    
-    // Extract Apple user ID from the 'sub' field (subject)
-    const appleUserId = payload.sub || `apple_${crypto.createHash('sha256').update(email || 'unknown').digest('hex').substring(0, 16)}`;
+    // Get Apple's public keys
+    const client = jwksClient({
+      jwksUri: 'https://appleid.apple.com/auth/keys',
+      cache: true,
+      cacheMaxEntries: 5,
+      cacheMaxAge: 600000, // 10 minutes
+    });
+
+    const key = await client.getSigningKey(decoded.header.kid);
+    const publicKey = key.getPublicKey();
+
+    // Verify the token
+    const verified = jwt.verify(identityToken, publicKey, {
+      algorithms: ['RS256'],
+      audience: process.env.APPLE_BUNDLE_ID, // Your app's bundle ID
+      issuer: 'https://appleid.apple.com',
+    });
+
+    return verified;
+  } catch (error) {
+    console.error('Apple token verification error:', error);
+    throw new Error('Invalid Apple identity token');
+  }
+};
+
+// Helper function to extract Apple user info from token (production-ready)
+const extractAppleUserInfo = async (identityToken, email) => {
+  try {
+    const verifiedPayload = await verifyAppleToken(identityToken);
     
     return {
-      appleUserId,
-      email: payload.email || email,
-      emailVerified: payload.email_verified === 'true',
+      appleUserId: verifiedPayload.sub,
+      email: verifiedPayload.email || email,
+      emailVerified: verifiedPayload.email_verified === 'true',
     };
   } catch (error) {
     console.error('Apple token extraction error:', error);
@@ -792,7 +815,7 @@ router.post('/apple', async (req, res) => {
     let appleEmail;
     
     try {
-      appleUserInfo = extractAppleUserInfo(identityToken, email);
+      appleUserInfo = await extractAppleUserInfo(identityToken, email);
       appleUserId = appleUserInfo.appleUserId;
       appleEmail = appleUserInfo.email || email;
     } catch (tokenError) {
