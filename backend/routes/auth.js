@@ -9,7 +9,7 @@ const twilio = require('twilio');
 const redisService = require('../services/redisService');
 const multer = require('multer');
 const path = require('path');
-const jwksClient = require('jwks-client');
+const https = require('https');
 
 const router = express.Router();
 
@@ -65,6 +65,30 @@ const generateResetCode = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
+// Helper function to fetch Apple's public keys
+const fetchApplePublicKeys = () => {
+  return new Promise((resolve, reject) => {
+    https.get('https://appleid.apple.com/auth/keys', (res) => {
+      let data = '';
+      
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      
+      res.on('end', () => {
+        try {
+          const keys = JSON.parse(data);
+          resolve(keys);
+        } catch (error) {
+          reject(new Error('Failed to parse Apple public keys'));
+        }
+      });
+    }).on('error', (error) => {
+      reject(new Error('Failed to fetch Apple public keys'));
+    });
+  });
+};
+
 // Add this function for proper Apple token verification
 const verifyAppleToken = async (identityToken) => {
   try {
@@ -73,16 +97,18 @@ const verifyAppleToken = async (identityToken) => {
       throw new Error('Invalid token format');
     }
 
-    // Get Apple's public keys
-    const client = jwksClient({
-      jwksUri: 'https://appleid.apple.com/auth/keys',
-      cache: true,
-      cacheMaxEntries: 5,
-      cacheMaxAge: 600000, // 10 minutes
-    });
+    // Fetch Apple's public keys
+    const appleKeys = await fetchApplePublicKeys();
+    
+    // Find the key that matches the key ID from the token
+    const key = appleKeys.keys.find(k => k.kid === decoded.header.kid);
+    if (!key) {
+      throw new Error('No matching key found');
+    }
 
-    const key = await client.getSigningKey(decoded.header.kid);
-    const publicKey = key.getPublicKey();
+    // Convert JWK to PEM format
+    const jwkToPem = require('jwk-to-pem');
+    const publicKey = jwkToPem(key);
 
     // Verify the token
     const verified = jwt.verify(identityToken, publicKey, {
