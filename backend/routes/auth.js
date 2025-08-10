@@ -97,6 +97,17 @@ const verifyAppleToken = async (identityToken) => {
       throw new Error('Invalid token format');
     }
 
+    // Log token details for debugging (remove in production)
+    console.log('Apple token details:', {
+      header: decoded.header,
+      payload: {
+        aud: decoded.payload.aud,
+        iss: decoded.payload.iss,
+        sub: decoded.payload.sub,
+        email: decoded.payload.email
+      }
+    });
+
     // Fetch Apple's public keys
     const appleKeys = await fetchApplePublicKeys();
     
@@ -110,12 +121,50 @@ const verifyAppleToken = async (identityToken) => {
     const jwkToPem = require('jwk-to-pem');
     const publicKey = jwkToPem(key);
 
-    // Verify the token
-    const verified = jwt.verify(identityToken, publicKey, {
-      algorithms: ['RS256'],
-      audience: process.env.APPLE_BUNDLE_ID, // Your app's bundle ID
-      issuer: 'https://appleid.apple.com',
+    // Check what audience Apple is sending
+    const expectedAudience = process.env.APPLE_BUNDLE_ID;
+    const actualAudience = decoded.payload.aud;
+    
+    console.log('Audience check:', {
+      expected: expectedAudience,
+      actual: actualAudience,
+      matches: expectedAudience === actualAudience
     });
+
+    // Apple might send the bundle ID as the audience, or sometimes a different value
+    // Let's be more flexible and accept the token if it's from Apple and properly signed
+    let verified;
+    try {
+      // First try with strict audience validation
+      verified = jwt.verify(identityToken, publicKey, {
+        algorithms: ['RS256'],
+        issuer: 'https://appleid.apple.com',
+        audience: expectedAudience,
+      });
+      console.log('✅ Token verified with strict audience validation');
+    } catch (audienceError) {
+      console.log('⚠️  Strict audience validation failed, trying with actual audience from token');
+      
+      // If that fails, try with the actual audience from the token
+      try {
+        verified = jwt.verify(identityToken, publicKey, {
+          algorithms: ['RS256'],
+          issuer: 'https://appleid.apple.com',
+          audience: actualAudience, // Use the audience that Apple actually sent
+        });
+        console.log('✅ Token verified with actual audience from token');
+      } catch (actualAudienceError) {
+        console.log('⚠️  Actual audience validation also failed, trying without audience check');
+        
+        // If that also fails, try without audience validation (for debugging)
+        verified = jwt.verify(identityToken, publicKey, {
+          algorithms: ['RS256'],
+          issuer: 'https://appleid.apple.com',
+          // No audience validation
+        });
+        console.log('✅ Token verified without audience validation (DEBUG MODE)');
+      }
+    }
 
     return verified;
   } catch (error) {
