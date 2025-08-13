@@ -14,7 +14,10 @@
     "production": {
       "autoIncrement": true,
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "credentialsSource": "remote",
+        "buildConfiguration": "Release",
+        "simulator": false
       }
     }
   },

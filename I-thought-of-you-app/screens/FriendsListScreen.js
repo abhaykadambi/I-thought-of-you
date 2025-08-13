@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Platform, Alert, Share, ActivityIndicator, SectionList, RefreshControl } from 'react-native';
-import { friendsAPI } from '../services/api';
+import { friendsAPI, apiCallWithAuth } from '../services/api';
 import * as Contacts from 'expo-contacts';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -56,22 +56,34 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
 
   const loadIncomingRequests = async () => {
     try {
-      const data = await friendsAPI.getRequests();
+      const data = await apiCallWithAuth(
+        () => friendsAPI.getRequests(),
+        navigation
+      );
       setIncomingRequests((data.incoming || []).filter(r => r.status === 'pending'));
     } catch (error) {
       console.error('Error loading incoming requests:', error);
-      setIncomingRequests([]);
+      // Don't show alert for auth errors as user will be redirected
+      if (error.response?.status !== 401) {
+        setIncomingRequests([]);
+      }
     }
   };
 
   const handleRespond = async (requestId, status) => {
     setResponding(requestId + status);
     try {
-      await friendsAPI.respondToRequest(requestId, status);
+      await apiCallWithAuth(
+        () => friendsAPI.respondToRequest(requestId, status),
+        navigation
+      );
       await loadIncomingRequests();
       await loadFriends();
     } catch (error) {
-      Alert.alert('Error', 'Failed to update request.');
+      // Don't show alert for auth errors as user will be redirected
+      if (error.response?.status !== 401) {
+        Alert.alert('Error', 'Failed to update request.');
+      }
     } finally {
       setResponding(null);
     }
@@ -80,11 +92,17 @@ export default function FriendsListScreen({ navigation: propNavigation }) {
   const loadFriends = async () => {
     try {
       setLoading(true);
-      const data = await friendsAPI.getAll();
+      const data = await apiCallWithAuth(
+        () => friendsAPI.getAll(),
+        navigation
+      );
       setFriends(data.users || []);
     } catch (error) {
       console.error('Error loading friends:', error);
-      Alert.alert('Error', 'Failed to load friends. Please try again.');
+      // Don't show alert for auth errors as user will be redirected
+      if (error.response?.status !== 401) {
+        Alert.alert('Error', 'Failed to load friends. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

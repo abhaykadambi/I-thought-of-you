@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, Image, RefreshControl, FlatList, ActivityIndicator } from 'react-native';
-import { thoughtsAPI, authAPI } from '../services/api';
+import { thoughtsAPI, authAPI, apiCallWithAuth } from '../services/api';
 import { useFocusEffect } from '@react-navigation/native';
 import ReactionDisplay from '../components/ReactionDisplay';
 
@@ -54,7 +54,10 @@ export default function FeedScreen({ navigation }) {
     setReceivedOffset(0);
     setSentOffset(0);
     try {
-      const data = await thoughtsAPI.getAll({ limit: PAGE_SIZE, offset: 0 });
+      const data = await apiCallWithAuth(
+        () => thoughtsAPI.getAll({ limit: PAGE_SIZE, offset: 0 }),
+        navigation
+      );
       setReceivedThoughts(data.received || []);
       setSentThoughts(data.sent || []);
       setReceivedTotal(data.receivedTotal || 0);
@@ -64,7 +67,10 @@ export default function FeedScreen({ navigation }) {
       setLastLoadTime(Date.now());
     } catch (error) {
       console.error('Error loading thoughts:', error);
-      Alert.alert('Error', 'Failed to load thoughts. Please try again.');
+      // Don't show alert for auth errors as user will be redirected
+      if (error.response?.status !== 401) {
+        Alert.alert('Error', 'Failed to load thoughts. Please try again.');
+      }
     } finally {
       setLoading(false);
       // Do NOT setRefreshing(false) here!
@@ -81,12 +87,16 @@ export default function FeedScreen({ navigation }) {
     if (loadingMore || receivedThoughts.length >= receivedTotal) return;
     setLoadingMore(true);
     try {
-      const data = await thoughtsAPI.getAll({ limit: PAGE_SIZE, offset: receivedOffset });
+      const data = await apiCallWithAuth(
+        () => thoughtsAPI.getAll({ limit: PAGE_SIZE, offset: receivedOffset }),
+        navigation
+      );
       setReceivedThoughts(prev => [...prev, ...(data.received || [])]);
       setReceivedOffset(prev => prev + (data.received ? data.received.length : 0));
       setReceivedTotal(data.receivedTotal || receivedTotal);
     } catch (error) {
       console.error('Error loading more received thoughts:', error);
+      // Don't show alert for auth errors as user will be redirected
     } finally {
       setLoadingMore(false);
     }
@@ -96,12 +106,16 @@ export default function FeedScreen({ navigation }) {
     if (loadingMore || sentThoughts.length >= sentTotal) return;
     setLoadingMore(true);
     try {
-      const data = await thoughtsAPI.getAll({ limit: PAGE_SIZE, offset: sentOffset });
+      const data = await apiCallWithAuth(
+        () => thoughtsAPI.getAll({ limit: PAGE_SIZE, offset: sentOffset }),
+        navigation
+      );
       setSentThoughts(prev => [...prev, ...(data.sent || [])]);
       setSentOffset(prev => prev + (data.sent ? data.sent.length : 0));
       setSentTotal(data.sentTotal || sentTotal);
     } catch (error) {
       console.error('Error loading more sent thoughts:', error);
+      // Don't show alert for auth errors as user will be redirected
     } finally {
       setLoadingMore(false);
     }

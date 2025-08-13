@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -41,6 +41,35 @@ function MainApp({ navigation }) {
   React.useEffect(() => {
     const cleanup = notificationService.setupNotificationListener(navigation);
     return cleanup;
+  }, [navigation]);
+
+  // Periodic authentication check
+  React.useEffect(() => {
+    const checkAuthInterval = setInterval(async () => {
+      try {
+        const isValid = await authAPI.validateToken();
+        if (!isValid) {
+          console.log('🔄 Token validation failed, redirecting to welcome screen');
+          // Clear stored auth data
+          await authAPI.logout();
+          // Navigate to welcome screen
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Welcome' }],
+          });
+        }
+      } catch (error) {
+        console.error('💥 Error during periodic auth check:', error);
+        // On error, redirect to welcome screen to be safe
+        await authAPI.logout();
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Welcome' }],
+        });
+      }
+    }, 60000); // Check every minute
+
+    return () => clearInterval(checkAuthInterval);
   }, [navigation]);
 
   return (
@@ -128,8 +157,12 @@ export default function App() {
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        // Check if user is logged in
+        console.log('🚀 Initializing app...');
+        
+        // Check if user is logged in with token validation
         const loggedIn = await authAPI.isLoggedIn();
+        console.log('🔐 Authentication check result:', loggedIn);
+        
         setInitialRoute(loggedIn ? 'MainApp' : 'Welcome');
         
         // Request notification permissions if user is logged in
@@ -155,9 +188,13 @@ export default function App() {
           console.log('ℹ️ User not logged in, skipping notification setup');
         }
       } catch (error) {
-        console.warn('Error during app initialization:', error);
+        console.error('💥 Error during app initialization:', error);
+        // If there's an error during auth check, default to welcome screen
+        console.log('🔄 Redirecting to welcome screen due to auth error');
+        setInitialRoute('Welcome');
       } finally {
         setAppIsReady(true);
+        console.log('✅ App initialization complete');
         // Hide the splash screen
         await SplashScreen.hideAsync();
       }

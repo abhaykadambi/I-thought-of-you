@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Platform, FlatList, TextInput, Alert, ActivityIndicator, RefreshControl, ScrollView } from 'react-native';
-import { thoughtsAPI } from '../services/api';
-import { authAPI } from '../services/api';
+import { thoughtsAPI, authAPI, apiCallWithAuth } from '../services/api';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { supabase } from '../supabaseClient'; // We'll create this helper for upload
@@ -72,26 +71,38 @@ export default function ProfileScreen({ navigation }) {
     Promise.all([
       (async () => {
         try {
-          const { user: profile } = await authAPI.getProfile();
+          const { user: profile } = await apiCallWithAuth(
+            () => authAPI.getProfile(),
+            navigation
+          );
           setUser(profile);
           setEditedName(profile.name || '');
           setEditedUsername(profile.username || '');
           setEditedAvatar(profile.avatar || '');
         } catch (error) {
           console.error('Error loading profile:', error);
-          Alert.alert('Error', 'Failed to load profile. Please try again.');
+          // Don't show alert for auth errors as user will be redirected
+          if (error.response?.status !== 401) {
+            Alert.alert('Error', 'Failed to load profile. Please try again.');
+          }
         } finally {
           setProfileLoading(false);
         }
       })(),
       (async () => {
         try {
-          const data = await thoughtsAPI.getPinned();
+          const data = await apiCallWithAuth(
+            () => thoughtsAPI.getPinned(),
+            navigation
+          );
           setPinnedThoughts(data.pinnedThoughts || []);
           lastPinnedUpdate.current = Date.now();
         } catch (error) {
           console.error('Error loading pinned thoughts:', error);
-          Alert.alert('Error', 'Failed to load pinned thoughts. Please try again.');
+          // Don't show alert for auth errors as user will be redirected
+          if (error.response?.status !== 401) {
+            Alert.alert('Error', 'Failed to load pinned thoughts. Please try again.');
+          }
         } finally {
           setLoading(false);
         }

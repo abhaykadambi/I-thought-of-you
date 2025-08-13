@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Image, Alert, TouchableWithoutFeedback, Keyboard, ScrollView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import DropDownPicker from 'react-native-dropdown-picker';
-import { thoughtsAPI, friendsAPI } from '../services/api';
+import { thoughtsAPI, friendsAPI, apiCallWithAuth } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import notificationService from '../services/notificationService';
 
@@ -42,7 +42,10 @@ export default function ComposeThoughtScreen({ route, navigation }) {
   const fetchFriends = async () => {
     try {
       setLoading(true);
-      const response = await friendsAPI.getAll();
+      const response = await apiCallWithAuth(
+        () => friendsAPI.getAll(),
+        navigation
+      );
       const friendsList = response.users.map(friend => {
         return {
           label: friend.name,
@@ -54,7 +57,10 @@ export default function ComposeThoughtScreen({ route, navigation }) {
       setFriends(friendsList);
     } catch (error) {
       console.error('Error fetching friends:', error);
-      Alert.alert('Error', 'Failed to load friends');
+      // Don't show alert for auth errors as user will be redirected
+      if (error.response?.status !== 401) {
+        Alert.alert('Error', 'Failed to load friends');
+      }
     } finally {
       setLoading(false);
     }

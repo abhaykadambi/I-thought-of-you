@@ -28,13 +28,37 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid, redirect to login
+      // Token expired or invalid, clear local storage
       AsyncStorage.removeItem('authToken');
       AsyncStorage.removeItem('user');
+      
+      // Note: We can't navigate here since this interceptor doesn't have access to navigation
+      // The individual API calls will need to handle navigation on auth failures
     }
     return Promise.reject(error);
   }
 );
+
+// Helper function to handle API calls with auth error handling
+export const apiCallWithAuth = async (apiFunction, navigation, onAuthFailure) => {
+  try {
+    return await apiFunction();
+  } catch (error) {
+    if (error.response?.status === 401) {
+      // Handle authentication failure
+      if (onAuthFailure) {
+        onAuthFailure();
+      } else if (navigation) {
+        // Default behavior: redirect to welcome screen
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Welcome' }],
+        });
+      }
+    }
+    throw error;
+  }
+};
 
 // Auth API
 export const authAPI = {
@@ -79,10 +103,28 @@ export const authAPI = {
     await AsyncStorage.removeItem('user');
   },
 
-  // Check if user is logged in
+  // Validate if the stored token is actually valid
+  validateToken: async () => {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) return false;
+      
+      // Make a test API call to validate the token
+      const response = await api.get('/auth/profile');
+      return response.status === 200;
+    } catch (error) {
+      // If any error occurs (including 401), the token is invalid
+      console.log('Token validation failed:', error.message);
+      // Clean up invalid token
+      await AsyncStorage.removeItem('authToken');
+      await AsyncStorage.removeItem('user');
+      return false;
+    }
+  },
+
+  // Check if user is logged in (with token validation)
   isLoggedIn: async () => {
-    const token = await AsyncStorage.getItem('authToken');
-    return !!token;
+    return await authAPI.validateToken();
   },
 
   // Get stored user data
