@@ -8,6 +8,8 @@ class NotificationService {
   // Send push notification to a specific user
   async sendNotificationToUser(userId, title, body, data = {}) {
     try {
+      console.log(`🔔 Sending notification to user ${userId}: ${title}`);
+      
       // Get user's push token
       const { data: user, error } = await supabase
         .from('users')
@@ -17,17 +19,20 @@ class NotificationService {
 
       if (error || !user) {
         console.error('Error fetching user for notification:', error);
+        await this.logNotification(userId, title, body, 'error', 'User not found');
         return false;
       }
 
       if (!user.push_token) {
         console.log(`No push token found for user ${userId}`);
+        await this.logNotification(userId, title, body, 'error', 'No push token');
         return false;
       }
 
       // Check that the push token is valid
       if (!Expo.isExpoPushToken(user.push_token)) {
         console.error(`Push token ${user.push_token} is not a valid Expo push token`);
+        await this.logNotification(userId, title, body, 'error', 'Invalid push token');
         return false;
       }
 
@@ -40,6 +45,8 @@ class NotificationService {
         data: data,
       };
 
+      console.log(`📤 Sending message to token: ${user.push_token.substring(0, 20)}...`);
+
       // Send the message
       const chunks = expo.chunkPushNotifications([message]);
       const tickets = [];
@@ -48,6 +55,7 @@ class NotificationService {
         try {
           const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
           tickets.push(...ticketChunk);
+          console.log(`📦 Sent chunk with ${ticketChunk.length} tickets`);
         } catch (error) {
           console.error('Error sending push notification chunk:', error);
         }
@@ -57,15 +65,38 @@ class NotificationService {
       const errors = tickets.filter(ticket => ticket.status === 'error');
       if (errors.length > 0) {
         console.error('Push notification errors:', errors);
+        await this.logNotification(userId, title, body, 'error', `Expo errors: ${JSON.stringify(errors)}`);
         return false;
       }
 
-      console.log(`Push notification sent successfully to user ${userId}`);
+      console.log(`✅ Push notification sent successfully to user ${userId}`);
+      await this.logNotification(userId, title, body, 'sent', 'Success');
       return true;
 
     } catch (error) {
       console.error('Error sending push notification:', error);
+      await this.logNotification(userId, title, body, 'error', error.message);
       return false;
+    }
+  }
+
+  // Log notification attempt
+  async logNotification(userId, title, body, status, message) {
+    try {
+      await supabase
+        .from('notification_logs')
+        .insert([
+          {
+            user_id: userId,
+            notification_type: title,
+            success: status === 'sent',
+            error_message: status === 'error' ? message : null,
+            created_at: new Date().toISOString()
+          }
+        ]);
+      console.log(`📝 Logged notification: ${status} - ${message}`);
+    } catch (error) {
+      console.error('Error logging notification:', error);
     }
   }
 
