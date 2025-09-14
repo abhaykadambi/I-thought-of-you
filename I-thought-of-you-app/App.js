@@ -167,20 +167,23 @@ export default function App() {
         
         // Request notification permissions if user is logged in
         if (loggedIn) {
-          console.log('🔔 User is logged in, setting up notifications...');
+          console.log('🔔 User is logged in, checking notification setup...');
           
           // Small delay to ensure app is fully loaded
           setTimeout(async () => {
             try {
-              console.log('🔔 Initializing notification system...');
-              const success = await notificationService.requestPermissions();
-              if (success) {
-                console.log('✅ Notification system initialized successfully');
+              console.log('🔔 Checking notification setup...');
+              const setupComplete = await notificationService.isNotificationSetupComplete();
+              
+              if (!setupComplete.complete) {
+                console.log('⚠️ Notification setup incomplete:', setupComplete.reason);
+                // Prompt user to enable notifications
+                await notificationService.promptForNotificationsIfNeeded();
               } else {
-                console.log('⚠️ Notification system initialization failed, but continuing...');
+                console.log('✅ Notification system is properly set up');
               }
             } catch (error) {
-              console.error('💥 Error initializing notifications:', error);
+              console.error('💥 Error checking notification setup:', error);
               // Don't fail the app if notifications fail
             }
           }, 1000);

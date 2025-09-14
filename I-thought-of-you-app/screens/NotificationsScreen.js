@@ -11,6 +11,7 @@ export default function NotificationsScreen({ navigation }) {
   const [notificationSettings, setNotificationSettings] = useState({});
   const [loading, setLoading] = useState(true);
   const [permissionStatus, setPermissionStatus] = useState('unknown');
+  const [setupComplete, setSetupComplete] = useState(false);
 
   useEffect(() => {
     loadNotificationSettings();
@@ -19,7 +20,9 @@ export default function NotificationsScreen({ navigation }) {
 
   const checkPermissionStatus = async () => {
     const status = await notificationService.checkPermissionStatus();
+    const setupStatus = await notificationService.isNotificationSetupComplete();
     setPermissionStatus(status);
+    setSetupComplete(setupStatus.complete);
   };
 
   const loadNotificationSettings = async () => {
@@ -150,9 +153,9 @@ export default function NotificationsScreen({ navigation }) {
           <View style={styles.statusContainer}>
             <Text style={[
               styles.statusText,
-              { color: permissionStatus === 'granted' ? '#27ae60' : permissionStatus === 'denied' ? '#e74c3c' : '#f39c12' }
+              { color: setupComplete ? '#27ae60' : permissionStatus === 'denied' ? '#e74c3c' : '#f39c12' }
             ]}>
-              {notificationService.getPermissionStatusText()}
+              {setupComplete ? 'Fully Enabled' : notificationService.getPermissionStatusText()}
             </Text>
           </View>
         </View>
@@ -196,11 +199,51 @@ export default function NotificationsScreen({ navigation }) {
 
 
 
+      {/* Refresh Notifications */}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Refresh Notifications</Text>
+        <TouchableOpacity 
+          style={styles.testButton} 
+          onPress={async () => {
+            try {
+              const success = await notificationService.refreshPushToken();
+              if (success) {
+                Alert.alert('Success', 'Notifications have been refreshed successfully!');
+                await checkPermissionStatus(); // Refresh status
+              } else {
+                Alert.alert('Refresh Failed', 'Failed to refresh notifications. Please try again.');
+              }
+            } catch (error) {
+              Alert.alert('Error', 'An error occurred while refreshing notifications.');
+            }
+          }}
+        >
+          <Text style={styles.testButtonText}>Refresh Push Token</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Test Notifications */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Test Notifications</Text>
         <TouchableOpacity style={styles.testButton} onPress={handleTestNotification}>
-          <Text style={styles.testButtonText}>Send Test Notification</Text>
+          <Text style={styles.testButtonText}>Send Local Test</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.testButton, { marginTop: 8, backgroundColor: '#27ae60' }]} 
+          onPress={async () => {
+            try {
+              const success = await notificationService.sendBackendTestNotification();
+              if (success) {
+                Alert.alert('Success', 'Backend test notification sent!');
+              } else {
+                Alert.alert('Error', 'Failed to send backend test notification.');
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Failed to send backend test notification.');
+            }
+          }}
+        >
+          <Text style={styles.testButtonText}>Send Backend Test</Text>
         </TouchableOpacity>
       </View>
 

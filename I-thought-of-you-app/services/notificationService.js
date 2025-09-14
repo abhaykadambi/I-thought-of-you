@@ -1,5 +1,5 @@
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
+import { Platform, AppState } from 'react-native';
 import api from './api';
 
 // Configure notification behavior
@@ -18,7 +18,7 @@ class NotificationService {
   }
 
   // Request notification permissions and register push token
-  async requestPermissions() {
+  async requestPermissions(forcePrompt = false) {
     try {
       console.log('🔔 Requesting notification permissions...');
       
@@ -28,8 +28,8 @@ class NotificationService {
       
       let finalStatus = existingStatus;
       
-      // Only ask if permissions have not been determined
-      if (existingStatus !== 'granted') {
+      // Ask for permissions if not granted or if forcePrompt is true
+      if (existingStatus !== 'granted' || forcePrompt) {
         console.log('📝 Requesting new permissions...');
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
@@ -113,11 +113,40 @@ class NotificationService {
     return status === 'granted';
   }
 
+  // Send a backend test notification
+  async sendBackendTestNotification() {
+    try {
+      console.log('🧪 Sending backend test notification...');
+      const { notificationsAPI } = await import('./api');
+      const result = await notificationsAPI.test();
+      console.log('✅ Backend test notification result:', result);
+      return true;
+    } catch (error) {
+      console.error('💥 Error sending backend test notification:', error);
+      return false;
+    }
+  }
+
   // Send a local test notification
   async sendTestNotification() {
     try {
-      console.log('🧪 Sending test notification...');
-      await Notifications.scheduleNotificationAsync({
+      console.log('🧪 Sending local test notification...');
+      
+      // Check app state
+      const appState = AppState.currentState;
+      console.log('📱 App state:', appState);
+      
+      // First check if we have permissions
+      const { status } = await Notifications.getPermissionsAsync();
+      console.log('📱 Current permission status for local notification:', status);
+      
+      if (status !== 'granted') {
+        console.log('❌ No permission for local notifications');
+        return false;
+      }
+      
+      // Try to send the notification
+      const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
           title: "Test Notification",
           body: "This is a test notification from I Thought of You!",
@@ -125,10 +154,26 @@ class NotificationService {
         },
         trigger: null, // Send immediately
       });
-      console.log('✅ Test notification sent successfully');
+      
+      console.log('✅ Local test notification scheduled with ID:', notificationId);
+      
+      // For debugging, let's also try to present a notification immediately
+      if (Platform.OS === 'ios') {
+        try {
+          await Notifications.presentNotificationAsync({
+            title: "Immediate Test",
+            body: "This is an immediate test notification!",
+            data: { type: 'immediate_test' },
+          });
+          console.log('✅ Immediate notification presented');
+        } catch (immediateError) {
+          console.log('⚠️ Immediate notification failed:', immediateError);
+        }
+      }
+      
       return true;
     } catch (error) {
-      console.error('💥 Error sending test notification:', error);
+      console.error('💥 Error sending local test notification:', error);
       return false;
     }
   }
@@ -265,11 +310,14 @@ class NotificationService {
         console.log('🔑 Token preview:', token.substring(0, 30) + '...');
       }
       
-      // Check if token is registered with backend
-      if (token) {
-        console.log('📡 Testing backend registration...');
-        const isRegistered = await this.registerPushToken(token);
-        console.log('✅ Backend registration test result:', isRegistered);
+      // Check backend status
+      let backendStatus = null;
+      try {
+        const { notificationsAPI } = await import('./api');
+        backendStatus = await notificationsAPI.getStatus();
+        console.log('📡 Backend status:', backendStatus);
+      } catch (backendError) {
+        console.error('📡 Backend status check failed:', backendError);
       }
       
       // Try to send a test notification
@@ -279,7 +327,7 @@ class NotificationService {
       return {
         permissionStatus,
         hasToken: !!token,
-        backendRegistered: !!token && await this.registerPushToken(token),
+        backendStatus,
         testNotification: testResult
       };
     } catch (error) {
@@ -305,6 +353,70 @@ class NotificationService {
       }
     } catch (error) {
       console.error('💥 Error refreshing push token:', error);
+      return false;
+    }
+  }
+
+  // Check if notifications are fully set up (permissions + token + backend registration)
+  async isNotificationSetupComplete() {
+    try {
+      const permissionStatus = await this.checkPermissionStatus();
+      if (permissionStatus !== 'granted') {
+        return { complete: false, reason: 'permissions_not_granted', status: permissionStatus };
+      }
+
+      const token = await this.getPushToken();
+      if (!token) {
+        return { complete: false, reason: 'no_push_token', status: permissionStatus };
+      }
+
+      // Test backend registration
+      const registrationSuccess = await this.registerPushToken(token);
+      if (!registrationSuccess) {
+        return { complete: false, reason: 'backend_registration_failed', status: permissionStatus };
+      }
+
+      return { complete: true, reason: 'all_good', status: permissionStatus };
+    } catch (error) {
+      console.error('💥 Error checking notification setup:', error);
+      return { complete: false, reason: 'error', status: 'unknown' };
+    }
+  }
+
+  // Prompt user to enable notifications if not already enabled
+  async promptForNotificationsIfNeeded() {
+    try {
+      const setupStatus = await this.isNotificationSetupComplete();
+      
+      if (!setupStatus.complete) {
+        console.log('🔔 Notification setup incomplete, prompting user...');
+        
+        if (setupStatus.reason === 'permissions_not_granted') {
+          // Try to request permissions
+          const success = await this.requestPermissions(true);
+          if (success) {
+            console.log('✅ User granted notification permissions');
+            return true;
+          } else {
+            console.log('❌ User denied notification permissions');
+            return false;
+          }
+        } else if (setupStatus.reason === 'no_push_token' || setupStatus.reason === 'backend_registration_failed') {
+          // Try to refresh token and re-register
+          const success = await this.refreshPushToken();
+          if (success) {
+            console.log('✅ Push token refreshed and registered');
+            return true;
+          } else {
+            console.log('❌ Failed to refresh push token');
+            return false;
+          }
+        }
+      }
+      
+      return setupStatus.complete;
+    } catch (error) {
+      console.error('💥 Error prompting for notifications:', error);
       return false;
     }
   }

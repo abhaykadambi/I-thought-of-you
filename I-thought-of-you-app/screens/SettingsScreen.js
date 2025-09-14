@@ -9,6 +9,7 @@ const headerFontFamily = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
 export default function SettingsScreen({ navigation }) {
   const [notificationStatus, setNotificationStatus] = useState('unknown');
+  const [notificationSetupComplete, setNotificationSetupComplete] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -28,7 +29,9 @@ export default function SettingsScreen({ navigation }) {
 
   const checkNotificationStatus = async () => {
     const status = await notificationService.checkPermissionStatus();
+    const setupStatus = await notificationService.isNotificationSetupComplete();
     setNotificationStatus(status);
+    setNotificationSetupComplete(setupStatus.complete);
   };
 
   const checkAdminStatus = async () => {
@@ -93,13 +96,13 @@ export default function SettingsScreen({ navigation }) {
             <View style={styles.statusIndicator}>
               <View style={[
                 styles.statusDot,
-                { backgroundColor: notificationStatus === 'granted' ? '#27ae60' : notificationStatus === 'denied' ? '#e74c3c' : '#f39c12' }
+                { backgroundColor: notificationSetupComplete ? '#27ae60' : notificationStatus === 'denied' ? '#e74c3c' : '#f39c12' }
               ]} />
               <Text style={[
                 styles.statusText,
-                { color: notificationStatus === 'granted' ? '#27ae60' : notificationStatus === 'denied' ? '#e74c3c' : '#f39c12' }
+                { color: notificationSetupComplete ? '#27ae60' : notificationStatus === 'denied' ? '#e74c3c' : '#f39c12' }
               ]}>
-                {notificationService.getPermissionStatusText()}
+                {notificationSetupComplete ? 'Fully Enabled' : notificationService.getPermissionStatusText()}
               </Text>
             </View>
           </View>
@@ -147,6 +150,47 @@ export default function SettingsScreen({ navigation }) {
           <Text style={styles.settingArrow}>→</Text>
         </TouchableOpacity>
         
+        {/* Add refresh notifications button */}
+        <View style={styles.separator} />
+        <TouchableOpacity 
+          style={styles.settingRow} 
+          onPress={async () => {
+            try {
+              Alert.alert(
+                'Refresh Notifications',
+                'This will refresh your push token and re-register with the backend.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { 
+                    text: 'Refresh', 
+                    onPress: async () => {
+                      try {
+                        const success = await notificationService.refreshPushToken();
+                        if (success) {
+                          Alert.alert('Success', 'Notifications have been refreshed successfully!');
+                          checkNotificationStatus(); // Refresh status
+                        } else {
+                          Alert.alert('Refresh Failed', 'Failed to refresh notifications. Please try again.');
+                        }
+                      } catch (error) {
+                        Alert.alert('Error', 'An error occurred while refreshing notifications.');
+                      }
+                    }
+                  }
+                ]
+              );
+            } catch (error) {
+              console.error('Error showing refresh alert:', error);
+            }
+          }}
+        >
+          <View style={styles.settingContent}>
+            <Text style={styles.settingText}>Refresh Notifications</Text>
+            <Text style={styles.settingSubtext}>Refresh push token and backend registration</Text>
+          </View>
+          <Text style={styles.settingArrow}>→</Text>
+        </TouchableOpacity>
+
         {/* Add debug notifications button */}
         <View style={styles.separator} />
         <TouchableOpacity 
@@ -163,11 +207,16 @@ export default function SettingsScreen({ navigation }) {
                     onPress: async () => {
                       try {
                         const debugInfo = await notificationService.debugNotificationSetup();
+                        const backendInfo = debugInfo.backendStatus ? 
+                          `Backend Token Valid: ${debugInfo.backendStatus.user.hasValidToken ? 'Yes' : 'No'}\n` +
+                          `Backend Has Token: ${debugInfo.backendStatus.user.hasPushToken ? 'Yes' : 'No'}\n` : 
+                          'Backend Status: Unavailable\n';
+                        
                         Alert.alert(
                           'Debug Results', 
                           `Permission Status: ${debugInfo.permissionStatus}\n` +
                           `Has Push Token: ${debugInfo.hasToken ? 'Yes' : 'No'}\n` +
-                          `Backend Registered: ${debugInfo.backendRegistered ? 'Yes' : 'No'}\n` +
+                          backendInfo +
                           `Test Notification: ${debugInfo.testNotification ? 'Sent' : 'Failed'}`
                         );
                       } catch (error) {

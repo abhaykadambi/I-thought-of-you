@@ -156,7 +156,7 @@ export default function ComposeThoughtScreen({ route, navigation }) {
           });
 
           // Upload image first
-          const uploadResponse = await fetch('https://i-thought-of-you-production.up.railway.app/api/thoughts/upload-image', {
+          const uploadResponse = await fetch('http://localhost:3000/api/thoughts/upload-image', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${await AsyncStorage.getItem('authToken')}`,

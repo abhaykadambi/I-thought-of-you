@@ -186,4 +186,65 @@ router.post('/test', authenticateToken, async (req, res) => {
   }
 });
 
+// Comprehensive notification status check
+router.get('/status', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    // Get user's push token status
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('push_token, name, email')
+      .eq('id', userId)
+      .single();
+
+    if (userError) {
+      console.error('Error fetching user for status check:', userError);
+      return res.status(500).json({ error: 'Failed to fetch user data' });
+    }
+
+    // Check if push token is valid
+    const { Expo } = require('expo-server-sdk');
+    const hasValidToken = user.push_token && Expo.isExpoPushToken(user.push_token);
+
+    // Get notification statistics
+    const { data: stats, error: statsError } = await supabase
+      .rpc('get_notification_stats');
+
+    if (statsError) {
+      console.error('Error fetching notification stats:', statsError);
+    }
+
+    // Get recent notification logs for this user
+    const { data: logs, error: logsError } = await supabase
+      .from('notification_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (logsError) {
+      console.error('Error fetching notification logs:', logsError);
+    }
+
+    res.json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        hasPushToken: !!user.push_token,
+        hasValidToken: hasValidToken,
+        pushTokenPreview: user.push_token ? user.push_token.substring(0, 20) + '...' : null
+      },
+      stats: stats || { error: 'Could not fetch stats' },
+      recentLogs: logs || [],
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Status check error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router; 

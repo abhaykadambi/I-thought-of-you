@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Create axios instance
 const api = axios.create({
-  baseURL: 'https://i-thought-of-you-production.up.railway.app/api',
+  baseURL: 'http://localhost:3000/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -172,7 +172,7 @@ export const authAPI = {
       name: 'avatar.jpg',
     });
     const token = await AsyncStorage.getItem('authToken');
-    const response = await fetch('https://i-thought-of-you-production.up.railway.app/api/auth/upload-avatar', {
+    const response = await fetch('http://localhost:3000/api/auth/upload-avatar', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -361,6 +361,12 @@ export const notificationsAPI = {
   // Test notification
   test: async () => {
     const response = await api.post('/notifications/test');
+    return response.data;
+  },
+
+  // Get comprehensive notification status
+  getStatus: async () => {
+    const response = await api.get('/notifications/status');
     return response.data;
   },
 };
